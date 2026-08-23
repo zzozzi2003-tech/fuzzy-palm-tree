@@ -1,37 +1,14 @@
-ELEVEN STORE v5.3 — PROGRAMMING SERVICES
+ELEVEN STORE v5.4 — BANK TRANSFER + RECEIPT LOGS
 
-NEW PRODUCT:
-خدمات برمجية
+Customer flow:
+1. Checkout
+2. Enter phone/email
+3. Bank account QR/details appear
+4. Transfer exact amount
+5. Upload receipt
+6. Customer sees confirmation
+7. Admin > Payment Logs shows receipt
+8. Render/server logs also print the receipt event
 
-Customer can choose:
-HOURLY:
-- 1 Hour
-- 2 Hours
-- 3 Hours
-- 4 Hours
-
-PLANS:
-- Weekly
-- Half Monthly
-- Monthly
-- Yearly
-
-ADMIN:
-Edit the Programming Service product and choose Product Type:
-Programming Service
-
-You can change:
-- Hourly rate
-- Weekly price
-- Half monthly price
-- Monthly price
-- Yearly price
-
-Default prices included:
-Hourly: SAR 50/hour
-Weekly: SAR 500
-Half Monthly: SAR 900
-Monthly: SAR 1500
-Yearly: SAR 15000
-
-All prices are recalculated and validated by the backend during checkout.
+IMPORTANT FOR RENDER FREE:
+Local uploaded files and JSON data are not durable across redeploys/restarts. For production persistence, use persistent storage/object storage/database.

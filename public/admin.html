@@ -36,7 +36,7 @@
         <h1>Store Dashboard</h1>
         <p>Manage products, images, prices, visibility and ordering.</p>
       </div>
-      <button id="newProduct" class="primary-btn">+ Add Product</button>
+      <div class="dash-actions"><button id="showReceiptLogs" class="ghost-btn">Payment Logs</button><button id="newProduct" class="primary-btn">+ Add Product</button></div>
     </div>
 
     <div class="stats">
@@ -45,7 +45,7 @@
       <article><span>Store currency</span><strong>SAR</strong></article>
     </div>
 
-    <div id="productList" class="product-list"></div>
+    <div id="productList" class="product-list"></div><section id="receiptLogsSection" class="receipt-logs-section hidden"><div class="logs-head"><div><span class="eyebrow">PAYMENTS</span><h2>Receipt Logs</h2></div><button id="closeReceiptLogs" class="ghost-btn">Close</button></div><div id="receiptLogs" class="receipt-logs"></div></section>
   </section>
 </main>
 
