@@ -16,13 +16,15 @@ const DATA=path.join(ROOT,"data");
 const UPLOADS=path.join(ROOT,"uploads");
 const PRODUCTS=path.join(DATA,"products.json");
 const ORDERS=path.join(DATA,"orders.json");
-fs.mkdirSync(DATA,{recursive:true});fs.mkdirSync(UPLOADS,{recursive:true});
+const RECEIPT_LOGS=path.join(DATA,"receipt-logs.json");
+const RECEIPT_DIR=path.join(UPLOADS,"receipts");
+fs.mkdirSync(DATA,{recursive:true});fs.mkdirSync(UPLOADS,{recursive:true});fs.mkdirSync(RECEIPT_DIR,{recursive:true});
 
 function read(file,fallback){try{return fs.existsSync(file)?JSON.parse(fs.readFileSync(file,"utf8")):fallback}catch(e){console.error(e);return fallback}}
 function write(file,data){const tmp=file+".tmp";fs.writeFileSync(tmp,JSON.stringify(data,null,2));fs.renameSync(tmp,file)}
 function products(){return read(PRODUCTS,[])}function saveProducts(v){write(PRODUCTS,v)}function orders(){return read(ORDERS,[])}function saveOrders(v){write(ORDERS,v)}
 function nextId(rows){return rows.reduce((m,x)=>Math.max(m,Number(x.id||0)),0)+1}
-if(!fs.existsSync(PRODUCTS))saveProducts([]);if(!fs.existsSync(ORDERS))saveOrders([]);
+if(!fs.existsSync(PRODUCTS))saveProducts([]);if(!fs.existsSync(ORDERS))saveOrders([]);if(!fs.existsSync(RECEIPT_LOGS))write(RECEIPT_LOGS,[]);
 
 app.set("trust proxy",1);
 app.use(helmet({
@@ -67,6 +69,16 @@ const upload=multer({
   storage,limits:{fileSize:5*1024*1024},
   fileFilter:(_req,file,cb)=>/^image\/(png|jpeg|webp|gif)$/.test(file.mimetype)?cb(null,true):cb(new Error("Invalid image type"))
 });
+
+const receiptUpload=multer({
+  storage: multer.memoryStorage(),
+  limits:{fileSize:8*1024*1024},
+  fileFilter:(_req,file,cb)=>{
+    const ok=/^image\/(png|jpeg|webp)$/.test(file.mimetype)||file.mimetype==="application/pdf";
+    ok?cb(null,true):cb(new Error("Receipt must be PNG, JPG, WEBP or PDF."));
+  }
+});
+
 
 function isAdmin(req){return req.session?.isAdmin===true}
 function ensureCsrf(req){if(!req.session.csrfToken)req.session.csrfToken=crypto.randomBytes(32).toString("hex");return req.session.csrfToken}
@@ -140,10 +152,110 @@ app.delete("/api/admin/products/:id",requireAdmin,requireCsrf,(req,res)=>{
   rows.splice(i,1);saveProducts(rows);res.json({ok:true})
 });
 
+app.get("/api/admin/receipt-logs",requireAdmin,(_req,res)=>{const rows=read(RECEIPT_LOGS,[]);res.json([...rows].sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||""))))});
+
 const MPK=process.env.GEIDEA_MERCHANT_PUBLIC_KEY||"",APIP=process.env.GEIDEA_API_PASSWORD||"",BASE=(process.env.BASE_URL||"").replace(/\/$/,""),GEIDEA="https://api.ksamerchant.geidea.net/payment-intent/api/v2/direct/session";
 function ts(){const d=new Date(),p=n=>String(n).padStart(2,"0");return `${d.getUTCFullYear()}/${p(d.getUTCMonth()+1)}/${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`}
 function sig(amount,currency,ref,timestamp){return crypto.createHmac("sha256",APIP).update(`${MPK}${Number(amount).toFixed(2)}${currency}${ref}${timestamp}`).digest("base64")}
 async function geidea(amount,ref,orderItems){const timestamp=ts(),body={amount:Number(amount),currency:"SAR",timestamp,merchantReferenceId:ref,signature:sig(amount,"SAR",ref,timestamp),paymentOperation:"Pay",language:"en",callbackUrl:`${BASE}/api/payment/callback`,returnUrl:`${BASE}/payment-success`,expressCheckouts:[{wallet:"apple-pay",label:"Apple Pay"}],order:{orderItems}},auth=Buffer.from(`${MPK}:${APIP}`).toString("base64");const r=await fetch(GEIDEA,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json","Authorization":`Basic ${auth}`},body:JSON.stringify(body)});return {r,d:await r.json().catch(()=>({}))}}
+app.post("/api/checkout/bank-transfer",receiptUpload.single("receipt"),(req,res)=>{
+  console.log(`[BANK TRANSFER] request received | file=${req.file?.originalname||"none"} | type=${req.file?.mimetype||"none"} | size=${req.file?.size||0}`);
+  try{
+    if(!req.file)return res.status(400).json({message:"Please attach your payment receipt."});
+
+    let requestItems=[];
+    try{
+      requestItems=JSON.parse(String(req.body.items||"[]"));
+    }catch(parseErr){
+      console.error("[BANK TRANSFER] Invalid items JSON:",parseErr);
+      return res.status(400).json({message:"Invalid cart data."});
+    }
+
+    if(!Array.isArray(requestItems)||!requestItems.length){
+      return res.status(400).json({message:"Cart is empty."});
+    }
+
+    const ps=products();
+    const normalized=[];
+    let total=0;
+
+    for(const item of requestItems){
+      const p=ps.find(x=>Number(x.id)===Number(item.productId)&&x.active!==false);
+      const qty=Math.max(1,Math.min(Number(item.qty||1),20));
+      if(!p)return res.status(400).json({message:"A product is unavailable."});
+
+      let unitPrice=Number(p.price||0);
+      let label=p.name;
+      const option=String(item.option||"");
+
+      if(p.productType==="programming_service"){
+        const sp=p.servicePricing||{};
+        if(option.startsWith("hours:")){
+          const hours=Math.max(1,Math.min(Number(option.split(":")[1]||1),4));
+          unitPrice=Number(sp.hourlyRate||0)*hours;
+          label=`${p.name} - ${hours} Hour${hours>1?"s":""}`;
+        }else if(option==="weekly"){
+          unitPrice=Number(sp.weekly||0); label=`${p.name} - Weekly`;
+        }else if(option==="half_monthly"){
+          unitPrice=Number(sp.halfMonthly||0); label=`${p.name} - Half Monthly`;
+        }else if(option==="monthly"){
+          unitPrice=Number(sp.monthly||0); label=`${p.name} - Monthly`;
+        }else if(option==="yearly"){
+          unitPrice=Number(sp.yearly||0); label=`${p.name} - Yearly`;
+        }else{
+          return res.status(400).json({message:"Choose a programming service option."});
+        }
+      }
+
+      if(!Number.isFinite(unitPrice)||unitPrice<0){
+        return res.status(400).json({message:"Invalid product price."});
+      }
+      total+=unitPrice*qty;
+      normalized.push({productId:p.id,name:label,qty,unitPrice});
+    }
+
+    const extMap={
+      "image/png":".png",
+      "image/jpeg":".jpg",
+      "image/webp":".webp",
+      "application/pdf":".pdf"
+    };
+    const ext=extMap[req.file.mimetype]||".bin";
+    const filename=`${Date.now()}-${crypto.randomBytes(10).toString("hex")}${ext}`;
+    const receiptPath=path.join(RECEIPT_DIR,filename);
+
+    fs.mkdirSync(RECEIPT_DIR,{recursive:true});
+    fs.writeFileSync(receiptPath,req.file.buffer);
+
+    const logs=read(RECEIPT_LOGS,[]);
+    const id=nextId(logs);
+    const orderNumber=`ES-${String(id).padStart(5,"0")}`;
+    const customer=String(req.body.phone||req.body.email||"").trim();
+
+    const entry={
+      id,
+      orderNumber,
+      customer,
+      amount:Number(total.toFixed(2)),
+      currency:"SAR",
+      items:normalized,
+      receiptUrl:`/uploads/receipts/${filename}`,
+      receiptFilename:filename,
+      status:"receipt_uploaded",
+      createdAt:new Date().toISOString()
+    };
+
+    logs.push(entry);
+    write(RECEIPT_LOGS,logs);
+
+    console.log(`[PAYMENT RECEIPT] ${orderNumber} | ${customer||"No contact"} | SAR ${entry.amount} | ${entry.receiptUrl}`);
+    return res.json({ok:true,orderNumber,amount:entry.amount});
+  }catch(e){
+    console.error("[BANK TRANSFER] save error:",e && e.stack ? e.stack : e);
+    return res.status(500).json({message:"Could not save the receipt.",detail:process.env.NODE_ENV==="production"?undefined:String(e.message||e)});
+  }
+});
+
 app.post("/api/checkout/cart-session",async(req,res)=>{
   try{
     if(!MPK||!APIP||!BASE)return res.status(503).json({message:"Payment gateway is not activated yet."});
@@ -190,5 +302,16 @@ app.post("/api/checkout/cart-session",async(req,res)=>{
 app.post("/api/payment/callback",(req,res)=>{console.log("Geidea callback",req.body);res.sendStatus(200)});
 app.get("/api/health",(_req,res)=>res.json({ok:true,paymentConfigured:Boolean(MPK&&APIP&&BASE)}));
 
+
+app.use((err,req,res,next)=>{
+  console.error("[REQUEST ERROR]",err && err.stack ? err.stack : err);
+  if(err instanceof multer.MulterError){
+    if(err.code==="LIMIT_FILE_SIZE")return res.status(413).json({message:"Receipt file is too large. Maximum size is 8 MB."});
+    return res.status(400).json({message:`Upload error: ${err.message}`});
+  }
+  if(err)return res.status(400).json({message:err.message||"Request failed."});
+  next();
+});
+
 app.use((_req,res)=>res.status(404).send("Not found"));
-app.listen(PORT,()=>{console.log(`Eleven Store v5 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});
+app.listen(PORT,()=>{console.log(`Eleven Store v5.4.2 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});
