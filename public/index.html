@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#080d18">
+<title>Eleven Store</title>
+<link rel="stylesheet" href="/store.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="brand" href="/">
+      <img src="/assets/eleven-logo.png" alt="Eleven Store">
+      <span>Eleven Store</span>
+    </a>
+    <nav>
+      <a href="/">Home</a>
+      <a href="#latest">Latest</a>
+      <a href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener">Discord</a>
+    </nav>
+    <div class="header-actions">
+      <div class="search"><input id="searchInput" placeholder="Search products"><span>⌕</span></div>
+      <a class="cart-link" href="/cart">Cart <b id="cartCount">0</b></a>
+    </div>
+  </div>
+</header>
+
+<main>
+<section class="hero container">
+  <div class="hero-copy">
+    <span class="eyebrow">ELEVEN STORE</span>
+    <h1>Premium digital products.<br><span>Built for serious servers.</span></h1>
+    <p>Browse premium resources, add what you need to your cart, and complete your purchase through a clean secure checkout.</p>
+    <div class="hero-actions">
+      <a class="primary-btn" href="#latest">Browse Products</a>
+      <a class="ghost-btn" href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener">Join Discord</a>
+    </div>
+  </div>
+  <div class="hero-logo"><img src="/assets/eleven-logo.png" alt=""></div>
+</section>
+
+<section id="latest" class="container products-section">
+  <div class="section-title">
+    <div><span class="eyebrow">LATEST</span><h2>Latest Products</h2></div>
+    <span id="productCount" class="muted"></span>
+  </div>
+  <div id="products" class="product-grid"></div>
+</section>
+</main>
+
+<footer>
+  <div class="container footer-inner">
+    <div class="brand"><img src="/assets/eleven-logo.png" alt=""><span>Eleven Store</span></div>
+    <span>© <span id="year"></span> Eleven Store</span>
+    <a href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener">Discord</a>
+  </div>
+</footer>
+
+<script src="/store-config.js"></script>
+<script src="/shop.js"></script>
+</body>
+</html>

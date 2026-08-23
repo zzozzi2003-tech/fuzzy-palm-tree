@@ -1,0 +1,194 @@
+require("dotenv").config();
+const express=require("express");
+const path=require("path");
+const fs=require("fs");
+const crypto=require("crypto");
+const session=require("express-session");
+const multer=require("multer");
+const helmet=require("helmet");
+const rateLimit=require("express-rate-limit");
+
+const app=express();
+const PORT=Number(process.env.PORT||3000);
+const ROOT=__dirname;
+const PUBLIC=path.join(ROOT,"public");
+const DATA=path.join(ROOT,"data");
+const UPLOADS=path.join(ROOT,"uploads");
+const PRODUCTS=path.join(DATA,"products.json");
+const ORDERS=path.join(DATA,"orders.json");
+fs.mkdirSync(DATA,{recursive:true});fs.mkdirSync(UPLOADS,{recursive:true});
+
+function read(file,fallback){try{return fs.existsSync(file)?JSON.parse(fs.readFileSync(file,"utf8")):fallback}catch(e){console.error(e);return fallback}}
+function write(file,data){const tmp=file+".tmp";fs.writeFileSync(tmp,JSON.stringify(data,null,2));fs.renameSync(tmp,file)}
+function products(){return read(PRODUCTS,[])}function saveProducts(v){write(PRODUCTS,v)}function orders(){return read(ORDERS,[])}function saveOrders(v){write(ORDERS,v)}
+function nextId(rows){return rows.reduce((m,x)=>Math.max(m,Number(x.id||0)),0)+1}
+if(!fs.existsSync(PRODUCTS))saveProducts([]);if(!fs.existsSync(ORDERS))saveOrders([]);
+
+app.set("trust proxy",1);
+app.use(helmet({
+  contentSecurityPolicy:{
+    directives:{
+      defaultSrc:["'self'"],
+      scriptSrc:["'self'","https://www.ksamerchant.geidea.net"],
+      styleSrc:["'self'","'unsafe-inline'","https://fonts.googleapis.com"],
+      fontSrc:["'self'","https://fonts.gstatic.com","data:"],
+      imgSrc:["'self'","data:","blob:"],
+      connectSrc:["'self'","https://api.ksamerchant.geidea.net"],
+      frameSrc:["'self'","https://www.ksamerchant.geidea.net"],
+      objectSrc:["'none'"],
+      baseUri:["'self'"]
+    }
+  }
+}));
+app.use(express.json({limit:"500kb"}));
+app.use(express.urlencoded({extended:true}));
+
+app.use(session({
+  name:"eleven.sid",
+  secret:process.env.SESSION_SECRET||"CHANGE_ME",
+  resave:false,
+  saveUninitialized:false,
+  cookie:{httpOnly:true,sameSite:"strict",secure:process.env.NODE_ENV==="production",maxAge:1000*60*60*8}
+}));
+
+const authLimiter=rateLimit({windowMs:15*60*1000,limit:20,standardHeaders:true,legacyHeaders:false});
+const apiLimiter=rateLimit({windowMs:60*1000,limit:180,standardHeaders:true,legacyHeaders:false});
+app.use("/api/",apiLimiter);
+
+const storage=multer.diskStorage({
+  destination:(_req,_file,cb)=>cb(null,UPLOADS),
+  filename:(_req,file,cb)=>{
+    const ext=path.extname(file.originalname||"").toLowerCase();
+    const ok=[".png",".jpg",".jpeg",".webp",".gif"].includes(ext)?ext:".jpg";
+    cb(null,`${Date.now()}-${crypto.randomBytes(8).toString("hex")}${ok}`);
+  }
+});
+const upload=multer({
+  storage,limits:{fileSize:5*1024*1024},
+  fileFilter:(_req,file,cb)=>/^image\/(png|jpeg|webp|gif)$/.test(file.mimetype)?cb(null,true):cb(new Error("Invalid image type"))
+});
+
+function isAdmin(req){return req.session?.isAdmin===true}
+function ensureCsrf(req){if(!req.session.csrfToken)req.session.csrfToken=crypto.randomBytes(32).toString("hex");return req.session.csrfToken}
+function requireAdmin(req,res,next){if(!isAdmin(req))return res.status(401).json({message:"Unauthorized"});next()}
+function requireCsrf(req,res,next){const token=String(req.get("X-CSRF-Token")||"");if(!isAdmin(req)||!req.session.csrfToken||token!==req.session.csrfToken)return res.status(403).json({message:"Invalid security token"});next()}
+function cleanSlug(v){return String(v||"").trim().toLowerCase().replace(/[^a-z0-9-_]+/g,"-").replace(/^-+|-+$/g,"").slice(0,80)}
+function sorted(rows){return [...rows].sort((a,b)=>(Number(a.sortOrder||0)-Number(b.sortOrder||0))||(Number(b.id)-Number(a.id)))}
+
+app.use("/assets",express.static(path.join(PUBLIC,"assets"),{maxAge:"1d"}));
+app.use("/uploads",express.static(UPLOADS,{maxAge:"1d",fallthrough:false}));
+["store.css","commerce.css","checkout.css","admin.css","store-config.js","shop.js","cart.js","checkout.js","admin.js"].forEach(file=>{
+  app.get("/"+file,(_req,res)=>res.sendFile(path.join(PUBLIC,file)));
+});
+app.get("/",(_req,res)=>res.sendFile(path.join(PUBLIC,"index.html")));
+app.get("/cart",(_req,res)=>res.sendFile(path.join(PUBLIC,"cart.html")));
+app.get("/checkout",(_req,res)=>res.sendFile(path.join(PUBLIC,"checkout.html")));
+app.get("/payment-success",(_req,res)=>res.sendFile(path.join(PUBLIC,"payment-success.html")));
+app.get("/admin",(_req,res)=>res.sendFile(path.join(PUBLIC,"admin.html")));
+app.get("/admin.html",(_req,res)=>res.redirect("/admin"));
+
+app.get("/api/products",(_req,res)=>res.json(sorted(products()).filter(p=>p.active!==false)));
+app.get("/api/admin/session",(req,res)=>res.json({authenticated:isAdmin(req),csrfToken:isAdmin(req)?ensureCsrf(req):null}));
+app.post("/api/admin/login",authLimiter,(req,res)=>{
+  const expected=String(process.env.ADMIN_PASSWORD||""),supplied=String(req.body?.password||"");
+  if(!expected||expected==="CHANGE_THIS_TO_A_LONG_RANDOM_PASSWORD")return res.status(503).json({message:"Set ADMIN_PASSWORD in .env first."});
+  const a=Buffer.from(expected),b=Buffer.from(supplied);
+  if(a.length!==b.length||!crypto.timingSafeEqual(a,b))return res.status(401).json({message:"Incorrect password."});
+  req.session.regenerate(err=>{if(err)return res.status(500).json({message:"Session error"});req.session.isAdmin=true;const csrfToken=ensureCsrf(req);res.json({ok:true,csrfToken})});
+});
+app.post("/api/admin/logout",requireAdmin,requireCsrf,(req,res)=>req.session.destroy(()=>res.json({ok:true})));
+app.get("/api/admin/products",requireAdmin,(_req,res)=>res.json(sorted(products())));
+
+app.post("/api/admin/products",requireAdmin,requireCsrf,upload.single("image"),(req,res)=>{
+  const rows=products(),name=String(req.body.name||"").trim(),slug=cleanSlug(req.body.slug||name),price=Number(req.body.price||0);
+  if(!name||!slug)return res.status(400).json({message:"Name and slug are required."});
+  if(!Number.isFinite(price)||price<0)return res.status(400).json({message:"Invalid price."});
+  if(rows.some(p=>p.slug===slug))return res.status(409).json({message:"Slug already exists."});
+  const productType=String(req.body.productType||"standard");
+  let servicePricing={};
+  if(productType==="programming_service"){
+    try{servicePricing=JSON.parse(String(req.body.servicePricing||"{}"))}catch{}
+  }
+  const row={id:nextId(rows),slug,name,tag:String(req.body.tag||"ELEVEN").trim().slice(0,30),description:String(req.body.description||"").trim(),price,image:req.file?`/uploads/${req.file.filename}`:"",active:String(req.body.active||"1")==="1",sortOrder:Number(req.body.sortOrder||0),productType,servicePricing};
+  rows.push(row);saveProducts(rows);res.json(row)
+});
+app.put("/api/admin/products/:id",requireAdmin,requireCsrf,upload.single("image"),(req,res)=>{
+  const rows=products(),id=Number(req.params.id),i=rows.findIndex(p=>Number(p.id)===id);if(i<0)return res.status(404).json({message:"Product not found."});
+  const old=rows[i],name=String(req.body.name||old.name).trim(),slug=cleanSlug(req.body.slug||old.slug),price=Number(req.body.price??old.price);
+  if(rows.some(p=>Number(p.id)!==id&&p.slug===slug))return res.status(409).json({message:"Slug already exists."});
+  const productType=String(req.body.productType??old.productType??"standard");
+  let servicePricing=old.servicePricing||{};
+  if(productType==="programming_service" && req.body.servicePricing!==undefined){
+    try{servicePricing=JSON.parse(String(req.body.servicePricing||"{}"))}catch{}
+  }
+  rows[i]={...old,name,slug,tag:String(req.body.tag??old.tag).trim().slice(0,30),description:String(req.body.description??old.description).trim(),price,image:req.file?`/uploads/${req.file.filename}`:old.image,active:String(req.body.active??(old.active?"1":"0"))==="1",sortOrder:Number(req.body.sortOrder??old.sortOrder??0),productType,servicePricing};
+  saveProducts(rows);res.json(rows[i])
+});
+
+app.patch("/api/admin/products/:id/visibility",requireAdmin,requireCsrf,(req,res)=>{
+  const rows=products();
+  const id=Number(req.params.id);
+  const i=rows.findIndex(p=>Number(p.id)===id);
+  if(i<0)return res.status(404).json({message:"Product not found."});
+  rows[i]={...rows[i],active:req.body?.active===true};
+  saveProducts(rows);
+  res.json(rows[i]);
+});
+
+app.delete("/api/admin/products/:id",requireAdmin,requireCsrf,(req,res)=>{
+  const rows=products(),id=Number(req.params.id),i=rows.findIndex(p=>Number(p.id)===id);if(i<0)return res.status(404).json({message:"Product not found."});
+  rows.splice(i,1);saveProducts(rows);res.json({ok:true})
+});
+
+const MPK=process.env.GEIDEA_MERCHANT_PUBLIC_KEY||"",APIP=process.env.GEIDEA_API_PASSWORD||"",BASE=(process.env.BASE_URL||"").replace(/\/$/,""),GEIDEA="https://api.ksamerchant.geidea.net/payment-intent/api/v2/direct/session";
+function ts(){const d=new Date(),p=n=>String(n).padStart(2,"0");return `${d.getUTCFullYear()}/${p(d.getUTCMonth()+1)}/${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`}
+function sig(amount,currency,ref,timestamp){return crypto.createHmac("sha256",APIP).update(`${MPK}${Number(amount).toFixed(2)}${currency}${ref}${timestamp}`).digest("base64")}
+async function geidea(amount,ref,orderItems){const timestamp=ts(),body={amount:Number(amount),currency:"SAR",timestamp,merchantReferenceId:ref,signature:sig(amount,"SAR",ref,timestamp),paymentOperation:"Pay",language:"en",callbackUrl:`${BASE}/api/payment/callback`,returnUrl:`${BASE}/payment-success`,expressCheckouts:[{wallet:"apple-pay",label:"Apple Pay"}],order:{orderItems}},auth=Buffer.from(`${MPK}:${APIP}`).toString("base64");const r=await fetch(GEIDEA,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json","Authorization":`Basic ${auth}`},body:JSON.stringify(body)});return {r,d:await r.json().catch(()=>({}))}}
+app.post("/api/checkout/cart-session",async(req,res)=>{
+  try{
+    if(!MPK||!APIP||!BASE)return res.status(503).json({message:"Payment gateway is not activated yet."});
+    const requestItems=Array.isArray(req.body?.items)?req.body.items:[];if(!requestItems.length)return res.status(400).json({message:"Cart is empty."});
+    const ps=products(),orderItems=[];let total=0;
+    for(const item of requestItems){
+      const p=ps.find(x=>Number(x.id)===Number(item.productId)&&x.active!==false);
+      const qty=Math.max(1,Math.min(Number(item.qty||1),20));
+      if(!p)return res.status(400).json({message:"A product is unavailable."});
+
+      let unitPrice=Number(p.price||0);
+      let orderName=p.name;
+      let sku=p.slug;
+
+      if(p.productType==="programming_service"){
+        const option=String(item.option||"");
+        const sp=p.servicePricing||{};
+        if(option.startsWith("hours:")){
+          const hours=Math.max(1,Math.min(Number(option.split(":")[1]||1),4));
+          unitPrice=Number(sp.hourlyRate||0)*hours;
+          orderName=`${p.name} - ${hours} Hour${hours>1?"s":""}`;
+          sku=`${p.slug}-hours-${hours}`;
+        }else if(option==="weekly"){
+          unitPrice=Number(sp.weekly||0); orderName=`${p.name} - Weekly`; sku=`${p.slug}-weekly`;
+        }else if(option==="half_monthly"){
+          unitPrice=Number(sp.halfMonthly||0); orderName=`${p.name} - Half Monthly`; sku=`${p.slug}-half-monthly`;
+        }else if(option==="monthly"){
+          unitPrice=Number(sp.monthly||0); orderName=`${p.name} - Monthly`; sku=`${p.slug}-monthly`;
+        }else if(option==="yearly"){
+          unitPrice=Number(sp.yearly||0); orderName=`${p.name} - Yearly`; sku=`${p.slug}-yearly`;
+        }else{
+          return res.status(400).json({message:"Choose a programming service option."});
+        }
+        if(!Number.isFinite(unitPrice)||unitPrice<=0)return res.status(400).json({message:"This service option has no valid price yet."});
+      }
+
+      total+=unitPrice*qty;
+      orderItems.push({name:orderName,count:qty,price:unitPrice,sku});
+    }
+    const ref=crypto.randomUUID(),rows=orders();rows.push({id:nextId(rows),reference:ref,amount:total,currency:"SAR",status:"created",createdAt:new Date().toISOString()});saveOrders(rows);
+    const {r,d}=await geidea(total,ref,orderItems);if(!r.ok||d.responseCode!=="000"||!d.session?.id)return res.status(502).json({message:d.detailedResponseMessage||d.responseMessage||"Payment gateway rejected the session."});res.json({sessionId:d.session.id,reference:ref})
+  }catch(e){console.error(e);res.status(500).json({message:"Unable to start checkout."})}
+});
+app.post("/api/payment/callback",(req,res)=>{console.log("Geidea callback",req.body);res.sendStatus(200)});
+app.get("/api/health",(_req,res)=>res.json({ok:true,paymentConfigured:Boolean(MPK&&APIP&&BASE)}));
+
+app.use((_req,res)=>res.status(404).send("Not found"));
+app.listen(PORT,()=>{console.log(`Eleven Store v5 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});

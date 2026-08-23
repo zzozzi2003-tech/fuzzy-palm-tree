@@ -1,0 +1,99 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin | Eleven Store</title>
+<link rel="stylesheet" href="/admin.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="brand" href="/"><img src="/assets/eleven-logo.png"><span>Eleven Store</span></a>
+    <div class="header-actions">
+      <a class="ghost-btn" href="/" target="_blank">View Store</a>
+      <button id="logout" class="ghost-btn hidden">Logout</button>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+  <section id="loginView" class="login-card">
+    <span class="eyebrow">ADMIN DASHBOARD</span>
+    <h1>Eleven Store Admin</h1>
+    <p>Secure management for your store.</p>
+    <form id="loginForm">
+      <input id="password" type="password" placeholder="Admin password" required>
+      <button class="primary-btn">Login</button>
+    </form>
+    <small id="loginMessage"></small>
+  </section>
+
+  <section id="dashboard" class="hidden">
+    <div class="dash-head">
+      <div>
+        <span class="eyebrow">PRODUCTS</span>
+        <h1>Store Dashboard</h1>
+        <p>Manage products, images, prices, visibility and ordering.</p>
+      </div>
+      <button id="newProduct" class="primary-btn">+ Add Product</button>
+    </div>
+
+    <div class="stats">
+      <article><span>Total products</span><strong id="totalProducts">0</strong></article>
+      <article><span>Active products</span><strong id="activeProducts">0</strong></article>
+      <article><span>Store currency</span><strong>SAR</strong></article>
+    </div>
+
+    <div id="productList" class="product-list"></div>
+  </section>
+</main>
+
+<div id="productModal" class="drawer-wrap hidden">
+  <div class="drawer-shade" data-close-product></div>
+  <aside class="drawer">
+    <button class="drawer-close" data-close-product>×</button>
+    <span class="eyebrow">PRODUCT EDITOR</span>
+    <h2 id="editorTitle">Add Product</h2>
+
+    <form id="productForm">
+      <input type="hidden" id="productId">
+      <label>Product name<input id="name" name="name" required></label>
+      <div class="two">
+        <label>Slug<input id="slug" name="slug"></label>
+        <label>Tag<input id="tag" name="tag"></label>
+      </div>
+      <label>Description<textarea id="description" name="description" rows="5"></textarea></label>
+      <div class="two">
+        <label>Price (SAR)<input id="price" name="price" type="number" step="0.01" min="0"></label>
+        <label>Sort order<input id="sortOrder" name="sortOrder" type="number"></label>
+      </div>
+      <label>Product image<input id="image" name="image" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label><label>Product type
+        <select id="productType">
+          <option value="standard">Standard Product</option>
+          <option value="programming_service">Programming Service</option>
+        </select>
+      </label>
+      <div id="servicePricingFields" class="service-pricing hidden">
+        <span class="service-section-title">Programming Service Prices</span>
+        <div class="two">
+          <label>Hourly rate (SAR)<input id="hourlyRate" type="number" min="0" step="0.01"></label>
+          <label>Weekly (SAR)<input id="weeklyPrice" type="number" min="0" step="0.01"></label>
+        </div>
+        <div class="two">
+          <label>Half monthly (SAR)<input id="halfMonthlyPrice" type="number" min="0" step="0.01"></label>
+          <label>Monthly (SAR)<input id="monthlyPrice" type="number" min="0" step="0.01"></label>
+        </div>
+        <label>Yearly (SAR)<input id="yearlyPrice" type="number" min="0" step="0.01"></label>
+      </div>
+      <label class="toggle"><input id="active" type="checkbox" checked> Show product in store</label>
+      <div id="previewWrap" class="preview hidden"><img id="preview"></div>
+      <button id="saveProduct" class="primary-btn full">Save Product</button>
+      <small id="editorMessage"></small>
+    </form>
+  </aside>
+</div>
+
+<script src="/admin.js"></script>
+</body>
+</html>

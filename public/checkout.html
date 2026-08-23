@@ -1,0 +1,10 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Checkout | Eleven Store</title><link rel="stylesheet" href="/checkout.css"></head>
+<body><header><div class="wrap top"><div><strong>Order Total</strong><span id="topTotal">SAR 0</span></div><div class="brand"><img src="/assets/eleven-logo.png">Eleven Store</div></div></header>
+<main class="wrap checkout-wrap"><div class="step">Order Details</div><section class="checkout-card"><div class="section-title"><span>◎</span><div><h2>Sign in / Continue</h2><p>Enter your phone number or email to continue your order.</p></div></div>
+<div class="tabs"><button class="active" data-tab="phone">Phone</button><button data-tab="email">Email</button></div>
+<div id="phonePanel"><label>Phone Number</label><div class="phone"><span>+966</span><input id="phone" placeholder="5X XXX XXXX"></div></div>
+<div id="emailPanel" class="hidden"><label>Email Address</label><input id="email" class="wide" type="email" placeholder="name@example.com"></div>
+<button id="continue" class="black">Continue</button><hr><div class="section-title payment-title"><span>▣</span><div><h2>Payment</h2><p>Secure payment through Apple Pay, mada, Visa, or Mastercard.</p></div></div>
+<div id="paymentArea" class="payment-area locked"><div id="orderLines" class="order-lines"></div><div class="pay-card"><button id="pay" class="black">Continue to Secure Payment</button><div class="logos"><span> Pay</span><span>mada</span><span>VISA</span><span>Mastercard</span></div><small id="status">Enter your contact information first.</small></div></div>
+</section></main>
+<script src="https://www.ksamerchant.geidea.net/hpp/geideaCheckout.min.js"></script><script src="/store-config.js"></script><script src="/checkout.js"></script></body></html>
