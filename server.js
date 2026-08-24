@@ -81,10 +81,35 @@ const receiptUpload=multer({
 });
 
 
-function isAdmin(req){return req.session?.isAdmin===true}
+function adminTokenSecret(){return String(process.env.SESSION_SECRET||process.env.ADMIN_PASSWORD||"CHANGE_ME")}
+function issueAdminToken(){
+  const exp=Date.now()+1000*60*60*8;
+  const payload=`admin.${exp}`;
+  const sig=crypto.createHmac("sha256",adminTokenSecret()).update(payload).digest("hex");
+  return `${payload}.${sig}`;
+}
+function validAdminToken(req){
+  const auth=String(req.get("Authorization")||"");
+  if(!auth.startsWith("Bearer "))return false;
+  const token=auth.slice(7).trim();
+  const parts=token.split(".");
+  if(parts.length!==3||parts[0]!=="admin")return false;
+  const exp=Number(parts[1]);
+  if(!Number.isFinite(exp)||Date.now()>exp)return false;
+  const payload=`admin.${parts[1]}`;
+  const expected=crypto.createHmac("sha256",adminTokenSecret()).update(payload).digest("hex");
+  const a=Buffer.from(expected),b=Buffer.from(parts[2]||"");
+  return a.length===b.length&&crypto.timingSafeEqual(a,b);
+}
+function isAdmin(req){return req.session?.isAdmin===true||validAdminToken(req)}
 function ensureCsrf(req){if(!req.session.csrfToken)req.session.csrfToken=crypto.randomBytes(32).toString("hex");return req.session.csrfToken}
 function requireAdmin(req,res,next){if(!isAdmin(req))return res.status(401).json({message:"Unauthorized"});next()}
-function requireCsrf(req,res,next){const token=String(req.get("X-CSRF-Token")||"");if(!isAdmin(req)||!req.session.csrfToken||token!==req.session.csrfToken)return res.status(403).json({message:"Invalid security token"});next()}
+function requireCsrf(req,res,next){
+  if(validAdminToken(req))return next();
+  const token=String(req.get("X-CSRF-Token")||"");
+  if(!req.session?.isAdmin||!req.session.csrfToken||token!==req.session.csrfToken)return res.status(403).json({message:"Invalid security token"});
+  next();
+}
 function cleanSlug(v){return String(v||"").trim().toLowerCase().replace(/[^a-z0-9-_]+/g,"-").replace(/^-+|-+$/g,"").slice(0,80)}
 function sorted(rows){return [...rows].sort((a,b)=>(Number(a.sortOrder||0)-Number(b.sortOrder||0))||(Number(b.id)-Number(a.id)))}
 function isPremiumSubscriptionProduct(p){return String(p?.productType||'')==='premium_subscription'||String(p?.slug||'')==='fivevault-premium'}
@@ -234,15 +259,27 @@ app.get("/api/products/slug/:slug",(req,res)=>{
   res.json(publicProduct(req,p));
 });
 
-app.get("/api/admin/session",(req,res)=>res.json({authenticated:isAdmin(req),csrfToken:isAdmin(req)?ensureCsrf(req):null}));
+app.get("/api/admin/session",(req,res)=>res.json({authenticated:isAdmin(req),csrfToken:req.session?.isAdmin?ensureCsrf(req):null}));
 app.post("/api/admin/login",authLimiter,(req,res)=>{
   const expected=String(process.env.ADMIN_PASSWORD||""),supplied=String(req.body?.password||"");
   if(!expected||expected==="CHANGE_THIS_TO_A_LONG_RANDOM_PASSWORD")return res.status(503).json({message:"Set ADMIN_PASSWORD in .env first."});
   const a=Buffer.from(expected),b=Buffer.from(supplied);
   if(a.length!==b.length||!crypto.timingSafeEqual(a,b))return res.status(401).json({message:"Incorrect password."});
-  req.session.regenerate(err=>{if(err)return res.status(500).json({message:"Session error"});req.session.isAdmin=true;const csrfToken=ensureCsrf(req);res.json({ok:true,csrfToken})});
+  req.session.regenerate(err=>{
+    if(err)return res.status(500).json({message:"Session error"});
+    req.session.isAdmin=true;
+    const csrfToken=ensureCsrf(req);
+    const adminToken=issueAdminToken();
+    req.session.save(saveErr=>{
+      if(saveErr)return res.status(500).json({message:"Session save error"});
+      res.json({ok:true,csrfToken,adminToken});
+    });
+  });
 });
-app.post("/api/admin/logout",requireAdmin,requireCsrf,(req,res)=>req.session.destroy(()=>res.json({ok:true})));
+app.post("/api/admin/logout",requireAdmin,requireCsrf,(req,res)=>{
+  if(req.session)return req.session.destroy(()=>res.json({ok:true}));
+  res.json({ok:true});
+});
 app.get("/api/admin/products",requireAdmin,(_req,res)=>res.json(sorted(products())));
 
 app.post("/api/admin/products",requireAdmin,requireCsrf,upload.fields([{name:"image",maxCount:1},{name:"previewImages",maxCount:12}]),(req,res)=>{

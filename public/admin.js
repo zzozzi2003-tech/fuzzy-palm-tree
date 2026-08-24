@@ -1,16 +1,24 @@
 const $=s=>document.querySelector(s);
-let products=[],editing=null,csrf="";
+let products=[],editing=null,csrf="",adminToken=sessionStorage.getItem("eleven_admin_token")||"";
 
 async function api(url,opts={}){
   opts.headers=opts.headers||{};
+  opts.credentials="same-origin";
+  if(adminToken)opts.headers["Authorization"]=`Bearer ${adminToken}`;
   const method=(opts.method||"GET").toUpperCase();
   if(["POST","PUT","PATCH","DELETE"].includes(method)&&csrf){
     opts.headers["X-CSRF-Token"]=csrf;
   }
   const r=await fetch(url,opts);
   const d=await r.json().catch(()=>({}));
+  if(r.status===401){
+    adminToken="";csrf="";sessionStorage.removeItem("eleven_admin_token");
+    showLogin();
+    throw new Error("Admin session expired. Please login again.");
+  }
   if(!r.ok)throw new Error(d.message||"Request failed");
   if(d.csrfToken)csrf=d.csrfToken;
+  if(d.adminToken){adminToken=d.adminToken;sessionStorage.setItem("eleven_admin_token",adminToken)}
   return d;
 }
 
@@ -46,6 +54,7 @@ $("#loginForm").addEventListener("submit",async e=>{
       body:JSON.stringify({password:$("#password").value})
     });
     csrf=d.csrfToken||csrf;
+    if(d.adminToken){adminToken=d.adminToken;sessionStorage.setItem("eleven_admin_token",adminToken)}
     $("#password").value="";
     await showDashboard();
   }catch(err){$("#loginMessage").textContent=err.message}
@@ -53,7 +62,7 @@ $("#loginForm").addEventListener("submit",async e=>{
 
 $("#logout").addEventListener("click",async()=>{
   try{await api("/api/admin/logout",{method:"POST"})}
-  finally{csrf="";showLogin()}
+  finally{csrf="";adminToken="";sessionStorage.removeItem("eleven_admin_token");showLogin()}
 });
 
 async function load(){
