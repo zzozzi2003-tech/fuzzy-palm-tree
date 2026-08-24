@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Product | Eleven Store</title>
+<link rel="stylesheet" href="/product.css">
+</head>
+<body>
+<header class="site-header"><div class="shell header-inner">
+  <a class="brand" href="/"><img src="/assets/eleven-logo.png" alt="Eleven Store"><span>ELEVEN STORE</span></a>
+  <nav><a href="/">Home</a><a href="/">Files</a><a href="/">Scripts</a><a href="/">All Products</a></nav>
+  <div class="header-actions"><button class="icon-btn" id="accountBtn">👤</button><button class="icon-btn" id="cartBtn">🛍 <b id="cartBadge">0</b></button><button class="icon-btn" id="searchBtn">⌕</button></div>
+</div></header>
+
+<main class="shell product-page">
+  <div class="breadcrumbs"><a href="/">Home</a><span>‹</span><a href="/">Store</a><span>‹</span><strong id="crumbName">Product</strong></div>
+  <section class="product-layout">
+    <article class="product-info-panel">
+      <div class="product-kickers"><span id="soldBadge">🔥 Sold 0 times</span><span id="boughtBadge">🛒 Purchased 0 times</span></div>
+      <h1 id="productName">Loading...</h1>
+      <p id="productDescription"></p>
+      <div class="product-price"><strong id="productPrice">—</strong><span id="taxHint">SAR</span></div>
+      <div id="serviceOptions" class="service-options hidden"></div>
+      <div class="quantity-row"><span>Quantity</span><div class="qty"><button id="qtyMinus">−</button><b id="qtyValue">1</b><button id="qtyPlus">+</button></div></div>
+      <button class="buy-btn primary" id="addToCartBtn">🛍 Add to cart</button>
+      <button class="buy-btn secondary" id="buyNowBtn">⚡ Buy now</button>
+      <div class="benefits"><div><span>🎧</span><b>Support</b><small>Fast Discord support</small></div><div><span>🛡</span><b>Original files</b><small>Clean delivery flow</small></div><div><span>⚡</span><b>Fast delivery</b><small>After payment confirmation</small></div></div>
+      <div class="share-row"><span>Share product</span><a href="https://discord.gg/NzmA4xDnT" target="_blank">Discord</a><button id="copyLink">Copy link</button></div>
+    </article>
+
+    <section class="gallery-panel">
+      <div class="main-image-wrap"><button class="expand-btn" id="expandImage">⛶</button><button class="gallery-arrow left" id="prevImage">‹</button><img id="mainImage" src="/assets/eleven-logo.png" alt="Product image"><button class="gallery-arrow right" id="nextImage">›</button></div>
+      <div class="thumb-strip" id="thumbStrip"></div>
+      <div class="product-specs"><div><span>Product type</span><b id="specType">Product</b></div><div><span>Version</span><b id="specVersion">Latest</b></div><div><span>Compatibility</span><b>FiveM</b></div><div><span>Delivery</span><b>Digital</b></div></div>
+    </section>
+  </section>
+
+  <section class="comments-section">
+    <div class="comments-head"><div><span class="eyebrow">COMMUNITY</span><h2>Comments & Reactions</h2></div><a href="https://discord.gg/NzmA4xDnT" target="_blank" class="support-link">Support</a></div>
+    <div class="reaction-row" id="reactionRow"></div>
+    <div class="comments-grid"><div id="commentsList" class="comments-list"></div><form id="commentForm" class="comment-form"><label>Name</label><input id="commentName" maxlength="40" placeholder="Your name"><label>Comment</label><textarea id="commentMessage" maxlength="1000" placeholder="Write a comment..." required></textarea><button>Post comment</button></form></div>
+  </section>
+</main>
+
+<div id="cartModal" class="cart-modal hidden"><div class="cart-backdrop" data-close-cart></div><section class="cart-dialog"><header><button class="close-cart" data-close-cart>×</button><div><h2>Shopping Cart</h2><small id="cartItemCount">0 items</small></div></header><div class="cart-content"><aside class="cart-summary"><label>Coupon code</label><div class="coupon-row"><input placeholder="Coupon code"><button>Apply</button></div><div class="summary-box"><div><span>Subtotal</span><b id="cartSubtotal">SAR 0</b></div><div class="total"><span>Total</span><b id="cartTotal">SAR 0</b></div></div><button class="checkout-btn" id="modalCheckout">Continue to payment</button></aside><div class="cart-items" id="cartItems"></div></div></section></div>
+
+<div id="lightbox" class="lightbox hidden"><button id="closeLightbox">×</button><img id="lightboxImage"></div>
+<script src="/store-config.js"></script><script src="/product.js"></script>
+</body></html>

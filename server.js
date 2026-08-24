@@ -122,11 +122,12 @@ function computeStoreStats(){
 
 app.use("/assets",express.static(path.join(PUBLIC,"assets"),{maxAge:"1d"}));
 app.use("/uploads",express.static(UPLOADS,{maxAge:"1d",fallthrough:false}));
-["store.css","commerce.css","checkout.css","admin.css","orders.css","store-config.js","shop.js","cart.js","checkout.js","admin.js","orders.js"].forEach(file=>{
+["store.css","commerce.css","checkout.css","admin.css","orders.css","product.css","store-config.js","shop.js","cart.js","checkout.js","admin.js","orders.js","product.js"].forEach(file=>{
   app.get("/"+file,(_req,res)=>res.sendFile(path.join(PUBLIC,file)));
 });
 app.get("/",(_req,res)=>res.sendFile(path.join(PUBLIC,"index.html")));
 app.get("/cart",(_req,res)=>res.sendFile(path.join(PUBLIC,"cart.html")));
+app.get("/product/:slug",(_req,res)=>res.sendFile(path.join(PUBLIC,"product.html")));
 app.get("/orders",(_req,res)=>res.sendFile(path.join(PUBLIC,"orders.html")));
 app.get("/checkout",(_req,res)=>res.sendFile(path.join(PUBLIC,"checkout.html")));
 app.get("/payment-success",(_req,res)=>res.sendFile(path.join(PUBLIC,"payment-success.html")));
@@ -227,6 +228,12 @@ app.get("/api/my-orders",(req,res)=>{
 });
 
 app.get("/api/products",(req,res)=>res.json(sorted(products()).filter(p=>p.active!==false).map(p=>publicProduct(req,p))));
+app.get("/api/products/slug/:slug",(req,res)=>{
+  const p=products().find(x=>String(x.slug||"")===String(req.params.slug||"")&&x.active!==false);
+  if(!p)return res.status(404).json({message:"Product not found."});
+  res.json(publicProduct(req,p));
+});
+
 app.get("/api/admin/session",(req,res)=>res.json({authenticated:isAdmin(req),csrfToken:isAdmin(req)?ensureCsrf(req):null}));
 app.post("/api/admin/login",authLimiter,(req,res)=>{
   const expected=String(process.env.ADMIN_PASSWORD||""),supplied=String(req.body?.password||"");
@@ -484,4 +491,4 @@ app.use((err,req,res,next)=>{
 });
 
 app.use((_req,res)=>res.status(404).send("Not found"));
-app.listen(PORT,()=>{console.log(`Eleven Store v6.0.3 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});
+app.listen(PORT,()=>{console.log(`Eleven Store v6.1.1 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});

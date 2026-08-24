@@ -1,8 +1,18 @@
-ELEVEN STORE v6.0.3
+ELEVEN STORE v6.1.1 — PRODUCT PAGE + MULTI IMAGE GALLERY + CART MODAL
 
-- Restored Free Only filter.
-- Restored the product pricing behavior from before.
-- Free products can appear as FREE again.
-- Premium subscribers can receive eligible scripts free again.
-- Kept the newer spacing/layout fixes.
-- Kept real user/online/offline/download counters without artificial +100.
+WHAT CHANGED
+- Product cards now open a dedicated product page: /product/:slug
+- Product page layout follows the requested dark two-column design.
+- Main product image + preview gallery with arrows and thumbnails.
+- Existing admin Preview Images system is preserved (up to 12 preview images).
+- Cart now opens as a centered modal overlay instead of sending the customer straight away.
+- Cart modal includes quantity controls, remove, subtotal, total, coupon field and checkout button.
+- Product comments/reactions continue to work.
+- Programming service options continue to work.
+- Existing products.json was not changed.
+
+ADMIN IMAGE SYSTEM
+- Main image: one image.
+- Preview images: upload up to 12 additional images.
+- Existing previews can be removed while editing.
+- Product page automatically shows main image + all preview images.
