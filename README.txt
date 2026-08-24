@@ -1,17 +1,10 @@
-ELEVEN STORE v6.0 — LANG + SUPPORT + COMMENTS
+ELEVEN STORE v6.0.1 — UI OVERLAP FIX
 
-NEW IN THIS VERSION
-- Added floating bottom-left tools.
-- Language switcher now supports only 2 languages: English and Arabic.
-- Support button now goes directly to your Discord invite: https://discord.gg/NzmA4xDnT
-- Product preview modal is now larger and includes:
-  - main action button
-  - support / save / report buttons
-  - reactions (like / love / wow / angry)
-  - public comments section
-  - comment form
-- Added backend APIs for comments and reactions.
-
-NOTES
-- Comments and reactions are stored in: data/product_comments.json
-- On free hosting, local JSON files can reset after redeploy/restart.
+FIXES
+- Fixed overlapping / crowded layout on the storefront.
+- Premium subscription card now sits in a clean full-width section.
+- Stats cards now render in a clean row under the premium section.
+- Sidebar is sticky on desktop and stops overlapping content.
+- Reduced large titles and improved product card spacing.
+- Improved responsive behavior for tablet/mobile widths.
+- Prevented horizontal overflow in the store page.

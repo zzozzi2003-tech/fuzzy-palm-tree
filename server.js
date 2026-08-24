@@ -484,4 +484,4 @@ app.use((err,req,res,next)=>{
 });
 
 app.use((_req,res)=>res.status(404).send("Not found"));
-app.listen(PORT,()=>{console.log(`Eleven Store v6.0 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});
+app.listen(PORT,()=>{console.log(`Eleven Store v6.0.1 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});
