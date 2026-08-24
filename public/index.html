@@ -1,137 +1,66 @@
 <!doctype html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Eleven Store</title>
-  <meta name="theme-color" content="#090909">
-  <link rel="stylesheet" href="/store.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Eleven Store</title>
+<meta name="theme-color" content="#07101f">
+<link rel="stylesheet" href="/store.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="wrap topbar-inner">
-      <a class="brand" href="/"><img src="/assets/eleven-logo.png" alt="Eleven Store"><span>ELEVEN STORE</span></a>
-      <nav class="navlinks">
-        <a class="active" href="/" data-i18n="store">Store</a>
-        <a href="/orders" data-i18n="orders">Orders</a>
-        <a href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener" data-i18n="discord">Discord</a>
-      </nav>
-      <div class="top-actions">
-        <div class="compact-search"><span>⌕</span><input id="topSearch" placeholder="Search" data-i18n-ph="search"></div>
-        <a class="mini-btn" href="/orders" data-i18n="track">Track</a>
-        <a class="mini-btn cart-link" href="/cart"><span data-i18n="cart">Cart</span> <b id="cartCount">0</b></a>
-      </div>
+<header class="site-header">
+  <div class="header-shell">
+    <a class="brand" href="/"><img src="/assets/eleven-logo.png" alt="Eleven Store"><span>ELEVEN STORE</span></a>
+    <nav class="nav-main">
+      <a href="/" class="active" data-filter="all">الرئيسية</a>
+      <a href="#products" data-filter="files">الملفات</a>
+      <a href="#products" data-filter="scripts">السكربتات</a>
+      <a href="#products" data-filter="all">جميع المنتجات</a>
+    </nav>
+    <div class="header-actions">
+      <button class="icon-button" id="accountButton" aria-label="Account">👤</button>
+      <button class="icon-button cart-button" id="cartButton" aria-label="Cart">🛍<b id="cartBadge">0</b></button>
+      <button class="icon-button" id="searchButton" aria-label="Search">⌕</button>
     </div>
-  </header>
+  </div>
+</header>
 
-  <main class="wrap store-layout">
-    <aside class="sidebar">
-      <div class="filter-box">
-        <label data-i18n="search">SEARCH</label>
-        <div class="field with-icon"><span>⌕</span><input id="sideSearch" placeholder="Search by name, words, or resource" data-i18n-ph="searchLong"></div>
-      </div>
-      <div class="filter-box">
-        <label data-i18n="sortBy">SORT BY</label>
-        <select id="sortSelect">
-          <option value="newest">Newest First</option>
-          <option value="price-low">Price: Low to High</option>
-          <option value="price-high">Price: High to Low</option>
-          <option value="name">Name A-Z</option>
-        </select>
-      </div>
-      <div class="filter-box">
-        <label data-i18n="category">CATEGORY</label>
-        <div class="category-stack" id="categoryButtons">
-          <button class="active" data-category="all"><span>◈</span><b data-i18n="allRes">All Resources</b><em id="count-all">0</em></button>
-          <button data-category="mlo"><span>⌂</span><b data-i18n="mlos">MLOs</b><em id="count-mlo">0</em></button>
-          <button data-category="scripts"><span>⌘</span><b data-i18n="scripts">Scripts</b><em id="count-scripts">0</em></button>
-          <button data-category="clothes"><span>⌗</span><b data-i18n="clothes">Clothes</b><em id="count-clothes">0</em></button>
-          <button data-category="mods"><span>⌁</span><b data-i18n="mods">Mods</b><em id="count-mods">0</em></button>
-          <button data-category="vehicles"><span>◌</span><b data-i18n="vehicles">Vehicles</b><em id="count-vehicles">0</em></button>
-          <button data-category="programs"><span>⚙</span><b data-i18n="programs">Programs</b><em id="count-programs">0</em></button>
-          <button data-category="other"><span>○</span><b data-i18n="other">Other</b><em id="count-other">0</em></button>
-        </div>
-      </div>
-      <div class="filter-box">
-        <label data-i18n="pricing">PRICING</label>
-        <div class="pricing-stack" id="pricingButtons">
-          <button class="active pricing-all" data-pricing="all"><span>$</span><b data-i18n="all">All</b></button>
-          <button data-pricing="free"><span>$</span><b data-i18n="freeOnly">Free Only</b></button>
-          <button data-pricing="paid"><span>$</span><b data-i18n="paidOnly">Paid Only</b></button>
-        </div>
-      </div>
-    </aside>
+<div id="searchBar" class="search-bar hidden">
+  <div class="search-inner"><input id="searchInput" placeholder="ابحث عن منتج..."><button id="closeSearch">×</button></div>
+</div>
 
-    <section class="content-area">
-      <section class="hero-strip">
-        <div class="hero-banner">
-          <div class="hero-overlay"></div>
-          <div class="hero-copy">
-            <span class="eyebrow">ELEVEN PREMIUM STORE</span>
-            <h1 data-i18n="heroTitle">Premium releases, clean UI, fast delivery</h1>
-            <p data-i18n="heroDesc">Upgrade the storefront UI and offer a premium subscription for customers.</p>
-          </div>
-        </div>
-        <div class="ad-grid">
-          <div class="ad-card"><strong data-i18n="adv">Advertise with us!</strong><small data-i18n="advSmall">Premium placement for your project</small></div>
-          <div class="ad-card"><strong data-i18n="premiumAccess">Premium access</strong><small data-i18n="premiumAccessSmall">Every new script free with subscription</small></div>
-        </div>
-      </section>
+<main class="store-main">
+  <section class="section-head">
+    <div><span class="small-label">ELEVEN STORE</span><h1>أحدث المنتجات</h1></div>
+    <div class="head-tools"><select id="sortSelect"><option value="newest">الأحدث</option><option value="price-low">السعر: الأقل</option><option value="price-high">السعر: الأعلى</option></select></div>
+  </section>
+  <section id="products" class="product-grid"></section>
+</main>
 
-      <section class="wide-banner">
-        <div>
-          <span class="eyebrow" data-i18n="subBenefit">SUBSCRIBER BENEFIT</span>
-          <strong data-i18n="subText">Every new script release becomes free for premium members</strong>
-        </div>
-        <div class="wide-numbers"><b id="onlineNow">0</b><span data-i18n="online">online</span></div>
-      </section>
+<aside class="floating-tools">
+  <div class="lang-wrap">
+    <button id="langBtn" class="float-pill"><span class="lang-dot">AR</span><span>العربية</span><i>⌃</i></button>
+    <div id="langMenu" class="lang-menu hidden"><button data-lang="ar">العربية</button><button data-lang="en">English</button></div>
+  </div>
+  <a class="float-pill support-pill" href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener">🎧 <span id="supportText">الدعم</span></a>
+</aside>
 
-      <section class="stats-premium-grid">
-        <article class="stat-card"><span data-i18n="totalUsers">Total users</span><strong id="statUsers">0</strong></article>
-        <article class="stat-card"><span data-i18n="downloads">Total downloads</span><strong id="statDownloads">0</strong></article>
-        <article class="stat-card"><span data-i18n="latest">Latest release</span><strong id="latestRelease">--</strong><small id="latestReleaseName">No releases yet</small></article>
-        <article class="stat-card"><span data-i18n="offline">Offline now</span><strong id="offlineNow">0</strong><small data-i18n="offlineSmall">Real count + 100 boost</small></article>
-        <article class="premium-card" id="premiumPanel">
-          <div class="premium-badge">★</div>
-          <div>
-            <h2 id="premiumTitle">FiveVault Premium</h2>
-            <p id="premiumDesc">Any new script release becomes free for you. Priority access and cleaner experience.</p>
-          </div>
-          <div id="premiumPrice" class="premium-price">599 SAR</div>
-          <button id="premiumSubscribeBtn" class="premium-button">Subscribe now</button>
-          <small id="premiumState">Premium is not active.</small>
-        </article>
-      </section>
-
-      <section class="toolbar">
-        <div><strong><span id="productCount">0</span></strong> <span data-i18n="releases">releases</span></div>
-        <div class="toolbar-actions">
-          <button class="view-chip active">20</button>
-          <button class="view-chip">50</button>
-          <button class="view-chip">100</button>
-        </div>
-      </section>
-
-      <section id="noticeBar" class="notice-bar hidden"><span id="noticeText"></span><button id="noticeClose">×</button></section>
-      <section id="products" class="product-grid"></section>
-    </section>
-  </main>
-
-  <aside class="floating-tools">
-    <div class="lang-wrap">
-      <button id="langBtn" class="float-pill"><span class="lang-dot">EN</span><span>English</span><i>⌃</i></button>
-      <div id="langMenu" class="lang-menu hidden">
-        <button data-lang="en">English</button>
-        <button data-lang="ar">العربية</button>
-      </div>
+<div id="cartModal" class="cart-modal hidden">
+  <div class="cart-backdrop" data-cart-close></div>
+  <section class="cart-dialog">
+    <header class="cart-header"><button class="cart-close" data-cart-close>×</button><div><h2 id="cartTitle">سلة التسوق</h2><small id="cartCountText">0 عنصر</small></div><span>🛍</span></header>
+    <div class="cart-layout">
+      <aside class="cart-summary-panel">
+        <label id="couponLabel">كود الخصم</label>
+        <div class="coupon-row"><input placeholder="كود الخصم"><button id="couponApply">تطبيق</button></div>
+        <h3 id="summaryTitle">ملخص الطلب</h3>
+        <div class="summary-box"><div><span id="subtotalLabel">المجموع الفرعي</span><b id="cartSubtotal">0 SAR</b></div><div class="total"><span id="totalLabel">المجموع الكلي</span><b id="cartTotal">0 SAR</b></div></div>
+        <button id="checkoutButton" class="checkout-button">متابعة عملية الدفع</button>
+      </aside>
+      <div id="cartItems" class="cart-items"></div>
     </div>
-    <a id="supportLink" class="float-pill support-pill" href="https://discord.gg/NzmA4xDnT" target="_blank">🛟 <span data-i18n="support">Support</span></a>
-  </aside>
+  </section>
+</div>
 
-  <div id="productPreviewModal" class="modal hidden"></div>
-  <div id="serviceModal" class="modal hidden"></div>
-
-  <script src="/store-config.js"></script>
-  <script src="/shop.js"></script>
-<div id="cartModal" class="store-cart-modal hidden"><div class="store-cart-backdrop" data-store-cart-close></div><section class="store-cart-dialog"><header><button data-store-cart-close>×</button><div><h2>Shopping Cart</h2><small id="storeCartCount">0 items</small></div></header><div class="store-cart-layout"><aside><label>Coupon code</label><div class="store-coupon"><input placeholder="Coupon code"><button>Apply</button></div><div class="store-summary"><div><span>Subtotal</span><b id="storeSubtotal">SAR 0</b></div><div><span>Total</span><b id="storeTotal">SAR 0</b></div></div><button id="storeCheckout">Continue to payment</button></aside><div id="storeCartItems" class="store-cart-items"></div></div></section></div></body>
-</html>
+<script src="/store-config.js"></script><script src="/shop.js"></script>
+</body></html>
