@@ -103,20 +103,20 @@ function saveCommentsForProduct(id,entry){const all=commentStore();all[commentKe
 function computeStoreStats(){
   const rows=read(RECEIPT_LOGS,[]);
   const uniqueCustomers=new Set();
+  const recentCustomers=new Set();
   let deliveredQty=0;
-  let activeCustomers=0;
   const activeWindow=Date.now()-1000*60*60*48;
   for(const o of rows){
     const key=String(o?.discord?.id||o?.email||o?.phone||"").trim();
     if(key)uniqueCustomers.add(key);
-    if(String(o?.status||"")==="delivered")deliveredQty+=(Array.isArray(o?.items)?o.items.reduce((a,x)=>a+Number(x.qty||0),0):0);
+    if(String(o?.status||"")==="delivered") deliveredQty+=(Array.isArray(o?.items)?o.items.reduce((a,x)=>a+Number(x.qty||0),0):0);
     const t=Date.parse(String(o?.createdAt||""));
-    if(Number.isFinite(t)&&t>=activeWindow)activeCustomers++;
+    if(key&&Number.isFinite(t)&&t>=activeWindow) recentCustomers.add(key);
   }
-  const totalUsers=uniqueCustomers.size+100;
-  const onlineNow=activeCustomers+100;
-  const offlineNow=Math.max(totalUsers-onlineNow,100);
-  const totalDownloads=deliveredQty+100;
+  const totalUsers=uniqueCustomers.size;
+  const onlineNow=recentCustomers.size;
+  const offlineNow=Math.max(totalUsers-onlineNow,0);
+  const totalDownloads=deliveredQty;
   return {totalUsers,onlineNow,offlineNow,totalDownloads};
 }
 
@@ -484,4 +484,4 @@ app.use((err,req,res,next)=>{
 });
 
 app.use((_req,res)=>res.status(404).send("Not found"));
-app.listen(PORT,()=>{console.log(`Eleven Store v6.0.1 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});
+app.listen(PORT,()=>{console.log(`Eleven Store v6.0.3 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});

@@ -25,3 +25,15 @@ body.rtl .topbar-inner,body.rtl .top-actions,body.rtl .store-layout,body.rtl .wi
 .premium-card h2{align-self:end;}
 .premium-card p{grid-column:2;}
 @media (max-width:980px){.premium-card .premium-badge{grid-row:auto}.premium-card p{grid-column:auto}}
+
+/* v6.0.2 spacing + paid-only visual cleanup */
+.store-layout{column-gap:42px!important;row-gap:32px!important;padding-top:34px!important}
+.sidebar{gap:22px!important}.filter-box{margin-bottom:0!important}
+.content-area{gap:26px!important}
+.hero-strip{gap:22px!important;margin-bottom:4px}
+.ad-grid{gap:22px!important}.stats-premium-grid{gap:20px!important}.toolbar{margin-top:4px;margin-bottom:2px}
+.product-grid{gap:24px!important}.product-card{margin:0!important}
+.filter-box + .filter-box{margin-top:2px}
+.sidebar .filter-box:first-child{margin-bottom:2px}
+@media(max-width:1200px){.store-layout{column-gap:28px!important}}
+@media(max-width:980px){.store-layout{row-gap:26px!important}.content-area{gap:22px!important}}
