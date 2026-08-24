@@ -233,7 +233,7 @@ function toggleServicePricing(){
 }
 $("#productType").addEventListener("change",toggleServicePricing);
 
-async function loadReceiptLogs(){clearInterval(supportPoll);supportPoll=null;try{const logs=await api("/api/admin/receipt-logs");$("#receiptLogs").innerHTML=logs.map(log=>`<article class="receipt-log-card"><div><span class="log-status">${esc(log.status||"receipt_uploaded")}</span><h3>Order #${esc(log.orderNumber||String(log.id))}</h3><p>${esc(log.customer||"No contact")} · ${esc(log.createdAt||"")}</p></div><div class="log-total">SAR ${Number(log.amount||0).toLocaleString("en-US",{maximumFractionDigits:2})}</div><a class="action-btn" href="${esc(log.receiptUrl||"#")}" target="_blank" rel="noopener">View Receipt</a></article>`).join("")||'<div class="empty-admin">No receipt logs yet.</div>';$("#receiptLogsSection").classList.remove("hidden");$("#supportSection").classList.add("hidden");$("#productList").classList.add("hidden")}catch(e){alert(e.message)}}$("#showReceiptLogs").addEventListener("click",loadReceiptLogs);$("#closeReceiptLogs").addEventListener("click",()=>{$("#receiptLogsSection").classList.add("hidden");$("#productList").classList.remove("hidden")});
+async function loadReceiptLogs(){clearInterval(supportPoll);supportPoll=null;try{const logs=await api("/api/admin/receipt-logs");$("#receiptLogs").innerHTML=logs.map(log=>`<article class="receipt-log-card"><div><span class="log-status">${esc(log.status||"receipt_uploaded")}</span><h3>Order #${esc(log.orderNumber||String(log.id))}</h3><p>${esc(log.customer||"No contact")} · ${esc(log.createdAt||"")}</p></div><div class="log-total">SAR ${Number(log.amount||0).toLocaleString("en-US",{maximumFractionDigits:2})}</div><a class="action-btn" href="${esc(log.receiptUrl||"#")}" target="_blank" rel="noopener">View Receipt</a></article>`).join("")||'<div class="empty-admin">No receipt logs yet.</div>';$("#receiptLogsSection").classList.remove("hidden");$("#premiumSection").classList.add("hidden");$("#supportSection").classList.add("hidden");$("#productList").classList.add("hidden")}catch(e){alert(e.message)}}$("#showReceiptLogs").addEventListener("click",loadReceiptLogs);$("#closeReceiptLogs").addEventListener("click",()=>{$("#receiptLogsSection").classList.add("hidden");$("#productList").classList.remove("hidden")});
 
 let currentOrderFilter="processing";
 async function loadOrders(filter=currentOrderFilter){
@@ -256,6 +256,7 @@ async function loadOrders(filter=currentOrderFilter){
       </div>
     </article>`).join("")||'<div class="empty-admin">No orders in this section.</div>';
   $("#ordersSection").classList.remove("hidden");
+  $("#premiumSection").classList.add("hidden");
   $("#supportSection").classList.add("hidden");
   $("#productList").classList.add("hidden");
   $("#receiptLogsSection").classList.add("hidden");
@@ -286,7 +287,7 @@ async function loadNotificationHistory(){
 }
 $("#showNotifications").addEventListener("click",async()=>{
   clearInterval(supportPoll);supportPoll=null;
-  $("#notificationsSection").classList.remove("hidden");$("#supportSection").classList.add("hidden");$("#productList").classList.add("hidden");$("#ordersSection").classList.add("hidden");$("#receiptLogsSection").classList.add("hidden");await loadNotificationHistory();
+  $("#notificationsSection").classList.remove("hidden");$("#premiumSection").classList.add("hidden");$("#supportSection").classList.add("hidden");$("#productList").classList.add("hidden");$("#ordersSection").classList.add("hidden");$("#receiptLogsSection").classList.add("hidden");await loadNotificationHistory();
 });
 $("#closeNotifications").addEventListener("click",()=>{$("#notificationsSection").classList.add("hidden");$("#productList").classList.remove("hidden")});
 $("#notificationForm").addEventListener("submit",async e=>{
@@ -294,6 +295,18 @@ $("#notificationForm").addEventListener("submit",async e=>{
   try{await api("/api/admin/notifications",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:$("#notificationMessage").value,targetDiscordId:$("#notificationTarget").value.trim()})});$("#notificationMessage").value="";$("#notificationTarget").value="";$("#notificationResult").textContent="Notification sent.";await loadNotificationHistory()}catch(err){$("#notificationResult").textContent=err.message}
 });
 
+
+
+// Premium access management
+async function loadPremiumMembers(){
+  clearInterval(supportPoll);supportPoll=null;
+  const rows=await api('/api/admin/premium-members');
+  $('#premiumMembers').innerHTML=rows.map(m=>`<article class="premium-member-card"><div class="premium-avatar">P</div><div class="premium-member-main"><span class="status ${m.active?'active-status':'hidden-status'}">${m.active?'PREMIUM ACTIVE':'PREMIUM REVOKED'}</span><h3>${esc(m.globalName||m.username||'Discord Member')}</h3><p>@${esc(m.username||'unknown')} · ${esc(m.discordId)}</p><small>Premium order: ${esc(m.orderNumber||'—')} · ${esc(m.purchasedAt||'')}</small></div><button class="action-btn ${m.active?'danger':''}" data-premium-id="${esc(m.discordId)}" data-premium-active="${m.active?'0':'1'}">${m.active?'Revoke Premium':'Restore Premium'}</button></article>`).join('')||'<div class="empty-admin">No Premium members yet.</div>';
+  $('#premiumSection').classList.remove('hidden');$('#supportSection').classList.add('hidden');$('#notificationsSection').classList.add('hidden');$('#ordersSection').classList.add('hidden');$('#receiptLogsSection').classList.add('hidden');$('#productList').classList.add('hidden');
+}
+$('#showPremium').addEventListener('click',()=>loadPremiumMembers().catch(e=>alert(e.message)));
+$('#closePremium').addEventListener('click',()=>{$('#premiumSection').classList.add('hidden');$('#productList').classList.remove('hidden')});
+$('#premiumMembers').addEventListener('click',async e=>{const b=e.target.closest('[data-premium-id]');if(!b)return;const active=b.dataset.premiumActive==='1';const label=active?'restore Premium for':'revoke Premium from';if(!confirm(`Are you sure you want to ${label} this member?`))return;b.disabled=true;try{await api(`/api/admin/premium-members/${encodeURIComponent(b.dataset.premiumId)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({active})});await loadPremiumMembers()}catch(err){alert(err.message)}finally{b.disabled=false}});
 
 // Technical support inbox
 let activeSupportId="",supportPoll=null;
@@ -317,7 +330,7 @@ async function loadSupportConversation(id,refreshList=true){
   document.querySelectorAll(".support-thread").forEach(x=>x.classList.toggle("active",x.dataset.supportId===id));
   if(refreshList)await loadSupportThreads(false);
 }
-$("#showSupport").addEventListener("click",async()=>{$("#supportSection").classList.remove("hidden");$("#productList").classList.add("hidden");$("#notificationsSection").classList.add("hidden");$("#ordersSection").classList.add("hidden");$("#receiptLogsSection").classList.add("hidden");await loadSupportThreads(false);clearInterval(supportPoll);supportPoll=setInterval(()=>loadSupportThreads(true).catch(()=>{}),4000)});
+$("#showSupport").addEventListener("click",async()=>{$("#supportSection").classList.remove("hidden");$("#premiumSection").classList.add("hidden");$("#productList").classList.add("hidden");$("#notificationsSection").classList.add("hidden");$("#ordersSection").classList.add("hidden");$("#receiptLogsSection").classList.add("hidden");await loadSupportThreads(false);clearInterval(supportPoll);supportPoll=setInterval(()=>loadSupportThreads(true).catch(()=>{}),4000)});
 $("#closeSupport").addEventListener("click",()=>{$("#supportSection").classList.add("hidden");$("#productList").classList.remove("hidden");clearInterval(supportPoll);supportPoll=null});
 $("#supportThreadList").addEventListener("click",e=>{const b=e.target.closest("[data-support-id]");if(b)loadSupportConversation(b.dataset.supportId).catch(err=>alert(err.message))});
 $("#supportReplyForm").addEventListener("submit",async e=>{e.preventDefault();if(!activeSupportId)return;const message=$("#supportReply").value.trim();if(!message)return;$("#supportReplyButton").disabled=true;try{await api(`/api/admin/support/${encodeURIComponent(activeSupportId)}/messages`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message})});$("#supportReply").value="";await loadSupportConversation(activeSupportId)}catch(err){alert(err.message)}finally{$("#supportReplyButton").disabled=false}});

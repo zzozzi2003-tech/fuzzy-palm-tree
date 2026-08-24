@@ -20,6 +20,7 @@ const RECEIPT_LOGS=path.join(DATA,"receipt-logs.json");
 const NOTIFICATIONS=path.join(DATA,"notifications.json");
 const PRODUCT_COMMENTS=path.join(DATA,"product-comments.json");
 const SUPPORT_CHATS=path.join(DATA,"support-chats.json");
+const PREMIUM_ACCESS=path.join(DATA,"premium-access.json");
 const RECEIPT_DIR=path.join(UPLOADS,"receipts");
 fs.mkdirSync(DATA,{recursive:true});fs.mkdirSync(UPLOADS,{recursive:true});fs.mkdirSync(RECEIPT_DIR,{recursive:true});
 
@@ -27,7 +28,7 @@ function read(file,fallback){try{return fs.existsSync(file)?JSON.parse(fs.readFi
 function write(file,data){const tmp=file+".tmp";fs.writeFileSync(tmp,JSON.stringify(data,null,2));fs.renameSync(tmp,file)}
 function products(){return read(PRODUCTS,[])}function saveProducts(v){write(PRODUCTS,v)}function orders(){return read(ORDERS,[])}function saveOrders(v){write(ORDERS,v)}
 function nextId(rows){return rows.reduce((m,x)=>Math.max(m,Number(x.id||0)),0)+1}
-if(!fs.existsSync(PRODUCTS))saveProducts([]);if(!fs.existsSync(ORDERS))saveOrders([]);if(!fs.existsSync(RECEIPT_LOGS))write(RECEIPT_LOGS,[]);if(!fs.existsSync(NOTIFICATIONS))write(NOTIFICATIONS,[]);if(!fs.existsSync(PRODUCT_COMMENTS))write(PRODUCT_COMMENTS,{});if(!fs.existsSync(SUPPORT_CHATS))write(SUPPORT_CHATS,[]);
+if(!fs.existsSync(PRODUCTS))saveProducts([]);if(!fs.existsSync(ORDERS))saveOrders([]);if(!fs.existsSync(RECEIPT_LOGS))write(RECEIPT_LOGS,[]);if(!fs.existsSync(NOTIFICATIONS))write(NOTIFICATIONS,[]);if(!fs.existsSync(PRODUCT_COMMENTS))write(PRODUCT_COMMENTS,{});if(!fs.existsSync(SUPPORT_CHATS))write(SUPPORT_CHATS,[]);if(!fs.existsSync(PREMIUM_ACCESS))write(PREMIUM_ACCESS,[]);
 
 app.set("trust proxy",1);
 app.use(helmet({
@@ -92,9 +93,16 @@ function sorted(rows){return [...rows].sort((a,b)=>(Number(a.sortOrder||0)-Numbe
 function isPremiumSubscriptionProduct(p){return String(p?.productType||'')==='premium_subscription'||String(p?.slug||'')==='fivevault-premium'}
 function categoryForProduct(p){const tag=String(p?.tag||'').toLowerCase();if(String(p?.productType||'')==='programming_service')return 'services';if(tag.includes('mlo'))return 'mlo';if(isPremiumSubscriptionProduct(p))return 'subscription';return 'scripts'}
 function isPremiumEligibleScript(p){return categoryForProduct(p)==='scripts'&&String(p?.productType||'')!=='programming_service'&&!isPremiumSubscriptionProduct(p)}
-function hasPremiumAccess(discordId){if(!discordId)return false;const ps=products();const rows=read(RECEIPT_LOGS,[]);return rows.some(o=>String(o?.discord?.id||'')===String(discordId)&&String(o?.status||'')==='delivered'&&(o.items||[]).some(it=>{const p=ps.find(pp=>Number(pp.id)===Number(it.productId));return p&&isPremiumSubscriptionProduct(p)}))}
+function premiumControls(){return read(PREMIUM_ACCESS,[])}
+function premiumControl(discordId){return premiumControls().find(x=>String(x.discordId||'')===String(discordId))||null}
+function setPremiumControl(discordId,active){const rows=premiumControls();const id=String(discordId||'').trim();const i=rows.findIndex(x=>String(x.discordId||'')===id);const row={discordId:id,active:Boolean(active),updatedAt:new Date().toISOString()};if(i>=0)rows[i]={...rows[i],...row};else rows.push(row);write(PREMIUM_ACCESS,rows);return row}
+function premiumPurchaseOrders(discordId){const ps=products();return read(RECEIPT_LOGS,[]).filter(o=>String(o?.discord?.id||'')===String(discordId)&&String(o?.status||'')==='delivered'&&(o.items||[]).some(it=>{const p=ps.find(pp=>Number(pp.id)===Number(it.productId));return (p&&isPremiumSubscriptionProduct(p))||/premium/i.test(String(it?.name||''))}))}
+function hasPremiumAccess(discordId){if(!discordId)return false;const control=premiumControl(discordId);if(control&&control.active===false)return false;return premiumPurchaseOrders(discordId).length>0}
+function premiumMembers(){const ps=products(),logs=read(RECEIPT_LOGS,[]),map=new Map();for(const o of logs){const discordId=String(o?.discord?.id||'');if(!discordId||String(o?.status||'')!=='delivered')continue;const premium=(o.items||[]).some(it=>{const p=ps.find(pp=>Number(pp.id)===Number(it.productId));return (p&&isPremiumSubscriptionProduct(p))||/premium/i.test(String(it?.name||''))});if(!premium)continue;const prev=map.get(discordId);if(!prev||String(o.createdAt||'')>String(prev.purchasedAt||''))map.set(discordId,{discordId,username:String(o?.discord?.username||''),globalName:String(o?.discord?.globalName||''),orderNumber:String(o?.orderNumber||''),purchasedAt:o?.deliveredAt||o?.createdAt||''})}return [...map.values()].map(m=>{const control=premiumControl(m.discordId);return {...m,active:hasPremiumAccess(m.discordId),updatedAt:control?.updatedAt||m.purchasedAt}}).sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')))}
 function effectiveBasePrice(req,p){const premiumActive=hasPremiumAccess(req.session?.discordUser?.id);if(premiumActive&&isPremiumEligibleScript(p))return 0;return Number(p?.price||0)}
 function publicProduct(req,p){const premiumActive=hasPremiumAccess(req.session?.discordUser?.id);const effectivePrice=premiumActive&&isPremiumEligibleScript(p)?0:Number(p.price||0);return {...p,effectivePrice,premiumIncluded:premiumActive&&isPremiumEligibleScript(p),category:categoryForProduct(p)} }
+function safeNextPath(v){const next=String(v||'').trim();if(!next.startsWith('/')||next.startsWith('//')||next.startsWith('/admin'))return '/';return next.slice(0,240)}
+function requireCustomerApi(req,res,next){if(!req.session?.discordUser)return res.status(401).json({message:'Login required. Please sign in before checkout.'});next()}
 
 function commentStore(){return read(PRODUCT_COMMENTS,{});}
 function commentKey(id){return String(Number(id)||0);}
@@ -146,14 +154,15 @@ function computeStoreStats(){
 
 app.use("/assets",express.static(path.join(PUBLIC,"assets"),{maxAge:"1d"}));
 app.use("/uploads",express.static(UPLOADS,{maxAge:"1d",fallthrough:false}));
-["store.css","commerce.css","checkout.css","admin.css","orders.css","product.css","support-chat.css","store-config.js","shop.js","cart.js","checkout.js","admin.js","orders.js","product.js","support-chat.js"].forEach(file=>{
+["store.css","commerce.css","checkout.css","login.css","admin.css","orders.css","product.css","support-chat.css","store-config.js","shop.js","cart.js","checkout.js","login.js","admin.js","orders.js","product.js","support-chat.js"].forEach(file=>{
   app.get("/"+file,(_req,res)=>res.sendFile(path.join(PUBLIC,file)));
 });
 app.get("/",(_req,res)=>res.sendFile(path.join(PUBLIC,"index.html")));
 app.get("/cart",(_req,res)=>res.sendFile(path.join(PUBLIC,"cart.html")));
 app.get("/product/:slug",(_req,res)=>res.sendFile(path.join(PUBLIC,"product.html")));
 app.get("/orders",(_req,res)=>res.sendFile(path.join(PUBLIC,"orders.html")));
-app.get("/checkout",(_req,res)=>res.sendFile(path.join(PUBLIC,"checkout.html")));
+app.get("/login",(req,res)=>{const next=safeNextPath(req.query.next||"/");if(req.session?.discordUser)return res.redirect(next);res.sendFile(path.join(PUBLIC,"login.html"))});
+app.get("/checkout",(req,res)=>{if(!req.session?.discordUser)return res.redirect(`/login?next=${encodeURIComponent('/checkout')}`);res.sendFile(path.join(PUBLIC,"checkout.html"))});
 app.get("/payment-success",(_req,res)=>res.sendFile(path.join(PUBLIC,"payment-success.html")));
 app.get("/admin",(_req,res)=>res.sendFile(path.join(PUBLIC,"admin.html")));
 app.get("/admin.html",(_req,res)=>res.redirect("/admin"));
@@ -167,6 +176,7 @@ app.get("/auth/discord",(req,res)=>{
   if(!DISCORD_CLIENT_ID||!DISCORD_REDIRECT_URI)return res.status(503).send("Discord login is not configured.");
   const state=crypto.randomBytes(24).toString("hex");
   req.session.discordOAuthState=state;
+  req.session.discordReturnTo=safeNextPath(req.query.next||"/");
   const q=new URLSearchParams({
     client_id:DISCORD_CLIENT_ID,
     redirect_uri:DISCORD_REDIRECT_URI,
@@ -213,7 +223,9 @@ app.get("/auth/discord/callback",async(req,res)=>{
       avatar:String(user.avatar||"")
     };
     delete req.session.discordOAuthState;
-    res.redirect("/checkout");
+    const returnTo=safeNextPath(req.session.discordReturnTo||"/");
+    delete req.session.discordReturnTo;
+    res.redirect(returnTo);
   }catch(e){
     console.error("[DISCORD OAUTH]",e);
     res.status(500).send("Discord login failed.");
@@ -224,6 +236,7 @@ app.get("/api/auth/discord",(req,res)=>{
   const u=req.session?.discordUser;
   res.json({connected:Boolean(u),user:u||null,premiumActive:Boolean(u&&hasPremiumAccess(u.id))});
 });
+app.post("/api/auth/logout",(req,res)=>{delete req.session.discordUser;req.session.save(()=>res.json({ok:true}))});
 
 
 app.get("/api/notifications",(req,res)=>{
@@ -408,10 +421,27 @@ app.patch("/api/admin/orders/:id/status",requireAdmin,requireCsrf,(req,res)=>{
   rows[i].status=status;
   rows[i].deliveredAt=status==="delivered"?new Date().toISOString():null;
   write(RECEIPT_LOGS,rows);
+  if(status==="delivered"&&rows[i]?.discord?.id){
+    const ps=products();
+    const containsPremium=(rows[i].items||[]).some(it=>{const p=ps.find(pp=>Number(pp.id)===Number(it.productId));return (p&&isPremiumSubscriptionProduct(p))||/premium/i.test(String(it?.name||''))});
+    if(containsPremium)setPremiumControl(rows[i].discord.id,true);
+  }
   console.log(`[ORDER STATUS] ${rows[i].orderNumber} => ${status}`);
   res.json(rows[i]);
 });
 
+
+app.get("/api/admin/premium-members",requireAdmin,(_req,res)=>res.json(premiumMembers()));
+app.patch("/api/admin/premium-members/:discordId",requireAdmin,requireCsrf,(req,res)=>{
+  const discordId=String(req.params.discordId||"").trim();
+  if(!/^\d{10,25}$/.test(discordId))return res.status(400).json({message:"Invalid Discord ID."});
+  const members=premiumMembers();
+  if(!members.some(x=>x.discordId===discordId))return res.status(404).json({message:"Premium member not found."});
+  const active=req.body?.active===true;
+  setPremiumControl(discordId,active);
+  console.log(`[PREMIUM ACCESS] ${discordId} => ${active?'ACTIVE':'REVOKED'}`);
+  res.json({ok:true,discordId,active});
+});
 
 app.get("/api/admin/notifications",requireAdmin,(_req,res)=>{
   const rows=read(NOTIFICATIONS,[]);
@@ -434,17 +464,16 @@ const MPK=process.env.GEIDEA_MERCHANT_PUBLIC_KEY||"",APIP=process.env.GEIDEA_API
 function ts(){const d=new Date(),p=n=>String(n).padStart(2,"0");return `${d.getUTCFullYear()}/${p(d.getUTCMonth()+1)}/${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`}
 function sig(amount,currency,ref,timestamp){return crypto.createHmac("sha256",APIP).update(`${MPK}${Number(amount).toFixed(2)}${currency}${ref}${timestamp}`).digest("base64")}
 async function geidea(amount,ref,orderItems){const timestamp=ts(),body={amount:Number(amount),currency:"SAR",timestamp,merchantReferenceId:ref,signature:sig(amount,"SAR",ref,timestamp),paymentOperation:"Pay",language:"en",callbackUrl:`${BASE}/api/payment/callback`,returnUrl:`${BASE}/payment-success`,expressCheckouts:[{wallet:"apple-pay",label:"Apple Pay"}],order:{orderItems}},auth=Buffer.from(`${MPK}:${APIP}`).toString("base64");const r=await fetch(GEIDEA,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json","Authorization":`Basic ${auth}`},body:JSON.stringify(body)});return {r,d:await r.json().catch(()=>({}))}}
-app.post("/api/checkout/bank-transfer",receiptUpload.single("receipt"),(req,res)=>{
+app.post("/api/checkout/bank-transfer",requireCustomerApi,receiptUpload.single("receipt"),(req,res)=>{
   console.log(`[BANK TRANSFER] request received | file=${req.file?.originalname||"none"} | type=${req.file?.mimetype||"none"} | size=${req.file?.size||0}`);
   try{
     if(!req.file)return res.status(400).json({message:"Please attach your payment receipt."});
     if(!req.session?.discordUser)return res.status(401).json({message:"Connect your Discord account first."});
 
     const email=String(req.body.email||"").trim().toLowerCase();
-    const phoneRaw=String(req.body.phone||"").replace(/\s+/g,"");
-    const phone=phoneRaw.startsWith("0")?phoneRaw:`0${phoneRaw}`;
+    const phone=String(req.body.phone||"").replace(/[\s()\-]/g,"");
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))return res.status(400).json({message:"Enter a valid email address."});
-    if(!/^05\d{8}$/.test(phone))return res.status(400).json({message:"Enter a valid Saudi mobile number."});
+    if(!/^\+[1-9]\d{6,14}$/.test(phone))return res.status(400).json({message:"Enter a valid international phone number."});
 
     let requestItems=[];
     try{requestItems=JSON.parse(String(req.body.items||"[]"))}catch{return res.status(400).json({message:"Invalid cart data."})}
@@ -497,14 +526,13 @@ app.post("/api/checkout/bank-transfer",receiptUpload.single("receipt"),(req,res)
   }
 });
 
-app.post("/api/checkout/free-order",(req,res)=>{
+app.post("/api/checkout/free-order",requireCustomerApi,(req,res)=>{
   try{
     if(!req.session?.discordUser)return res.status(401).json({message:"Connect your Discord account first."});
     const email=String(req.body.email||"").trim().toLowerCase();
-    const phoneRaw=String(req.body.phone||"").replace(/\s+/g,"");
-    const phone=phoneRaw.startsWith("0")?phoneRaw:`0${phoneRaw}`;
+    const phone=String(req.body.phone||"").replace(/[\s()\-]/g,"");
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))return res.status(400).json({message:"Enter a valid email address."});
-    if(!/^05\d{8}$/.test(phone))return res.status(400).json({message:"Enter a valid Saudi mobile number."});
+    if(!/^\+[1-9]\d{6,14}$/.test(phone))return res.status(400).json({message:"Enter a valid international phone number."});
     let requestItems=[];
     try{requestItems=JSON.parse(String(req.body.items||"[]"))}catch{return res.status(400).json({message:"Invalid cart data."})}
     if(!Array.isArray(requestItems)||!requestItems.length)return res.status(400).json({message:"Cart is empty."});
@@ -527,7 +555,7 @@ app.post("/api/checkout/free-order",(req,res)=>{
   }catch(e){console.error('[PREMIUM FREE ORDER]',e);return res.status(500).json({message:'Could not create the free order.'})}
 });
 
-app.post("/api/checkout/cart-session",async(req,res)=>{
+app.post("/api/checkout/cart-session",requireCustomerApi,async(req,res)=>{
   try{
     if(!MPK||!APIP||!BASE)return res.status(503).json({message:"Payment gateway is not activated yet."});
     const requestItems=Array.isArray(req.body?.items)?req.body.items:[];if(!requestItems.length)return res.status(400).json({message:"Cart is empty."});

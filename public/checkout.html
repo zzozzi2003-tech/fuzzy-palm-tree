@@ -1,8 +1,104 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Checkout | Eleven Store</title><link rel="stylesheet" href="/checkout.css"><link rel="stylesheet" href="/support-chat.css">
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Checkout | Eleven Store</title>
+<meta name="theme-color" content="#050914">
+<link rel="stylesheet" href="/checkout.css">
+<link rel="stylesheet" href="/support-chat.css">
 </head>
-<body><header><div class="wrap top"><div><strong>Order Total</strong><span id="topTotal">SAR 0</span></div><div class="brand"><img src="/assets/eleven-logo.png">Eleven Store</div></div></header>
-<main class="wrap checkout-wrap"><div class="step">Order Details</div><section class="checkout-card"><div class="section-title"><span>◎</span><div><h2>Customer Details</h2><p>Enter your real mobile number and email to continue.</p></div></div><div class="customer-grid"><div><label>Phone Number</label><div class="phone"><span>+966</span><input id="phone" placeholder="5X XXX XXXX" inputmode="tel" maxlength="10"></div></div><div><label>Email Address</label><input id="email" class="wide" type="email" placeholder="name@example.com"></div></div>
-<div class="discord-link-card"><div><strong>Discord Account</strong><p>You must connect Discord before placing an order.</p></div><button id="connectDiscord" class="discord-btn">Connect Discord</button><div id="discordUser" class="discord-user hidden"></div></div>
-<button id="continue" class="black">Continue</button><hr><div class="section-title payment-title"><span>▣</span><div><h2 id="paymentHeading">Bank Transfer</h2><p id="paymentSub">Transfer the exact amount, then upload the receipt.</p></div></div><div id="paymentArea" class="payment-area locked"><div id="orderLines" class="order-lines"></div><div class="pay-card"><div class="bank-box" id="bankBox"><span class="bank-label">BANK TRANSFER DETAILS</span><img src="/assets/bank-transfer.png" alt="Bank transfer details" class="bank-image"><p>Transfer the exact order total shown above, then attach the payment receipt.</p></div><div class="receipt-box" id="receiptBox"><label>Payment Receipt</label><input id="receipt" type="file" accept="image/png,image/jpeg,image/webp,application/pdf"><small>PNG, JPG, WEBP or PDF — max 8 MB</small></div><button id="submitReceipt" class="black">I Have Paid — Upload Receipt</button><div id="receiptMessage" class="receipt-message hidden"></div></div></div></section></main><script src="/store-config.js"></script><script src="/checkout.js"></script><script src="/support-chat.js"></script>
-</body></html>
+<body>
+<div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
+<header class="checkout-header">
+  <div class="header-shell">
+    <a class="brand" href="/">
+      <span class="brand-mark"><img src="/assets/eleven-logo.png" alt="Eleven Store"></span>
+      <span class="brand-name"><b>ELEVEN</b><small>STORE</small></span>
+    </a>
+    <div class="header-center"><span class="secure-dot"></span> Secure checkout</div>
+    <div class="header-total"><small>Order total</small><strong id="topTotal">SAR 0</strong></div>
+  </div>
+</header>
+
+<main class="checkout-shell">
+  <div class="checkout-topline">
+    <a href="/cart" class="back-link">← Back to cart</a>
+    <div class="checkout-steps"><span class="done">1</span><i></i><span class="active">2</span><i></i><span>3</span></div>
+  </div>
+
+  <div class="checkout-layout">
+    <section class="checkout-main-card">
+      <div class="eyebrow">CHECKOUT</div>
+      <div class="page-heading">
+        <div><h1>Complete your order</h1><p>Enter your details, connect Discord, then attach your payment receipt.</p></div>
+        <span class="status-pill">SECURE</span>
+      </div>
+
+      <section class="form-section">
+        <div class="section-heading"><span class="section-number">01</span><div><h2>Customer details</h2><p>Your contact information will be saved with the order.</p></div></div>
+        <div class="customer-grid">
+          <div class="field phone-field-wrap">
+            <label for="phone">Phone number</label>
+            <div class="phone-control">
+              <select id="countryCode" aria-label="Country calling code"></select>
+              <div id="customCodeWrap" class="custom-code-wrap hidden"><span>+</span><input id="customCode" inputmode="numeric" maxlength="4" placeholder="000"></div>
+              <input id="phone" placeholder="Phone number" inputmode="tel" autocomplete="tel-national" maxlength="20">
+            </div>
+            <small id="phonePreview" class="field-hint">Saved as +966</small>
+          </div>
+          <div class="field">
+            <label for="email">Email address</label>
+            <input id="email" class="text-input" type="email" placeholder="name@example.com" autocomplete="email">
+            <small class="field-hint">Order updates will be linked to this email.</small>
+          </div>
+        </div>
+
+        <div class="discord-card">
+          <div class="discord-icon">D</div>
+          <div class="discord-copy"><strong>Logged-in account</strong><p>Your payment and Premium access are linked to this Discord account.</p></div>
+          <button id="connectDiscord" class="discord-btn hidden">Login with Discord</button>
+          <div id="discordUser" class="discord-user hidden"></div>
+          <button id="logoutCustomer" class="discord-btn logout-customer hidden" type="button">Logout</button>
+        </div>
+
+        <button id="continue" class="primary-action">Continue to payment <span>→</span></button>
+      </section>
+
+      <section class="form-section payment-section">
+        <div class="section-heading"><span class="section-number">02</span><div><h2 id="paymentHeading">Bank transfer</h2><p id="paymentSub">Transfer the exact amount, then upload the receipt.</p></div></div>
+        <div id="paymentArea" class="payment-area locked">
+          <div class="bank-panel" id="bankBox">
+            <div class="bank-panel-head"><span>BANK TRANSFER</span><b>Manual verification</b></div>
+            <div class="bank-image-wrap"><img src="/assets/bank-transfer.png" alt="Bank transfer details" class="bank-image"></div>
+            <p>Transfer the exact order total shown in the summary, then attach the receipt below.</p>
+          </div>
+
+          <div class="upload-panel">
+            <div class="receipt-box" id="receiptBox">
+              <label for="receipt">Payment receipt</label>
+              <label class="file-drop" for="receipt"><span class="upload-icon">↑</span><b>Choose receipt</b><small>PNG, JPG, WEBP or PDF · Max 8 MB</small></label>
+              <input id="receipt" type="file" accept="image/png,image/jpeg,image/webp,application/pdf">
+              <div id="fileName" class="file-name hidden"></div>
+            </div>
+            <button id="submitReceipt" class="primary-action submit-payment">I Have Paid — Upload Receipt <span>→</span></button>
+            <div id="receiptMessage" class="receipt-message hidden"></div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <aside class="order-summary-card">
+      <div class="summary-head"><div><span>ORDER SUMMARY</span><h2>Your cart</h2></div><div class="summary-bag">🛍</div></div>
+      <div id="orderLines" class="order-lines"></div>
+      <div class="summary-note"><span>✓</span><p>Products in your existing store data are preserved. Checkout only uses the current cart.</p></div>
+      <button type="button" data-open-support class="support-link">Need help? Talk to support</button>
+    </aside>
+  </div>
+</main>
+
+<script src="/store-config.js"></script>
+<script src="/checkout.js"></script>
+<script src="/support-chat.js"></script>
+</body>
+</html>

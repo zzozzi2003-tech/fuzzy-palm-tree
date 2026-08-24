@@ -36,7 +36,7 @@
         <h1>Store Dashboard</h1>
         <p>Manage products, images, prices, visibility and ordering.</p>
       </div>
-      <div class="dash-actions"><button id="showSupport" class="ghost-btn support-admin-btn">Support Chat <b id="supportUnreadBadge" class="support-unread hidden">0</b></button><button id="showNotifications" class="ghost-btn">Notify Members</button><button id="showOrders" class="ghost-btn">Orders</button><button id="showReceiptLogs" class="ghost-btn">Payment Logs</button><button id="newProduct" class="primary-btn">+ Add Product</button></div>
+      <div class="dash-actions"><button id="showPremium" class="ghost-btn">Premium Members</button><button id="showSupport" class="ghost-btn support-admin-btn">Support Chat <b id="supportUnreadBadge" class="support-unread hidden">0</b></button><button id="showNotifications" class="ghost-btn">Notify Members</button><button id="showOrders" class="ghost-btn">Orders</button><button id="showReceiptLogs" class="ghost-btn">Payment Logs</button><button id="newProduct" class="primary-btn">+ Add Product</button></div>
     </div>
 
     <div class="stats">
@@ -66,6 +66,11 @@
       </form>
     </section>
   </div>
+</section>
+
+<section id="premiumSection" class="premium-section hidden">
+  <div class="logs-head"><div><span class="eyebrow">PREMIUM ACCESS</span><h2>Premium Members</h2><p>Revoke or restore Premium without deleting the customer order.</p></div><button id="closePremium" class="ghost-btn">Close</button></div>
+  <div id="premiumMembers" class="premium-members"></div>
 </section>
 <section id="ordersSection" class="orders-section hidden">
           <div class="logs-head"><div><span class="eyebrow">ORDERS</span><h2>Order Management</h2></div><button id="closeOrders" class="ghost-btn">Close</button></div>
