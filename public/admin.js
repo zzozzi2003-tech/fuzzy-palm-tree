@@ -34,6 +34,7 @@ async function showDashboard(){
   const s=await api("/api/admin/session");
   csrf=s.csrfToken||csrf;
   await load();
+  loadSupportThreads(false).catch(()=>{});
 }
 
 $("#loginForm").addEventListener("submit",async e=>{
@@ -232,10 +233,11 @@ function toggleServicePricing(){
 }
 $("#productType").addEventListener("change",toggleServicePricing);
 
-async function loadReceiptLogs(){try{const logs=await api("/api/admin/receipt-logs");$("#receiptLogs").innerHTML=logs.map(log=>`<article class="receipt-log-card"><div><span class="log-status">${esc(log.status||"receipt_uploaded")}</span><h3>Order #${esc(log.orderNumber||String(log.id))}</h3><p>${esc(log.customer||"No contact")} · ${esc(log.createdAt||"")}</p></div><div class="log-total">SAR ${Number(log.amount||0).toLocaleString("en-US",{maximumFractionDigits:2})}</div><a class="action-btn" href="${esc(log.receiptUrl||"#")}" target="_blank" rel="noopener">View Receipt</a></article>`).join("")||'<div class="empty-admin">No receipt logs yet.</div>';$("#receiptLogsSection").classList.remove("hidden");$("#productList").classList.add("hidden")}catch(e){alert(e.message)}}$("#showReceiptLogs").addEventListener("click",loadReceiptLogs);$("#closeReceiptLogs").addEventListener("click",()=>{$("#receiptLogsSection").classList.add("hidden");$("#productList").classList.remove("hidden")});
+async function loadReceiptLogs(){clearInterval(supportPoll);supportPoll=null;try{const logs=await api("/api/admin/receipt-logs");$("#receiptLogs").innerHTML=logs.map(log=>`<article class="receipt-log-card"><div><span class="log-status">${esc(log.status||"receipt_uploaded")}</span><h3>Order #${esc(log.orderNumber||String(log.id))}</h3><p>${esc(log.customer||"No contact")} · ${esc(log.createdAt||"")}</p></div><div class="log-total">SAR ${Number(log.amount||0).toLocaleString("en-US",{maximumFractionDigits:2})}</div><a class="action-btn" href="${esc(log.receiptUrl||"#")}" target="_blank" rel="noopener">View Receipt</a></article>`).join("")||'<div class="empty-admin">No receipt logs yet.</div>';$("#receiptLogsSection").classList.remove("hidden");$("#supportSection").classList.add("hidden");$("#productList").classList.add("hidden")}catch(e){alert(e.message)}}$("#showReceiptLogs").addEventListener("click",loadReceiptLogs);$("#closeReceiptLogs").addEventListener("click",()=>{$("#receiptLogsSection").classList.add("hidden");$("#productList").classList.remove("hidden")});
 
 let currentOrderFilter="processing";
 async function loadOrders(filter=currentOrderFilter){
+  clearInterval(supportPoll);supportPoll=null;
   currentOrderFilter=filter;
   const orders=await api(`/api/admin/orders?status=${encodeURIComponent(filter)}`);
   $("#ordersList").innerHTML=orders.map(o=>`
@@ -254,6 +256,7 @@ async function loadOrders(filter=currentOrderFilter){
       </div>
     </article>`).join("")||'<div class="empty-admin">No orders in this section.</div>';
   $("#ordersSection").classList.remove("hidden");
+  $("#supportSection").classList.add("hidden");
   $("#productList").classList.add("hidden");
   $("#receiptLogsSection").classList.add("hidden");
 }
@@ -282,10 +285,41 @@ async function loadNotificationHistory(){
   $("#notificationHistory").innerHTML=rows.map(n=>`<article class="notification-row"><div><strong>${esc(n.message)}</strong><p>${n.targetDiscordId?`Target: ${esc(n.targetDiscordId)}`:"Everyone"} · ${esc(n.createdAt||"")}</p></div></article>`).join("")||'<div class="empty-admin">No notifications sent yet.</div>';
 }
 $("#showNotifications").addEventListener("click",async()=>{
-  $("#notificationsSection").classList.remove("hidden");$("#productList").classList.add("hidden");$("#ordersSection").classList.add("hidden");$("#receiptLogsSection").classList.add("hidden");await loadNotificationHistory();
+  clearInterval(supportPoll);supportPoll=null;
+  $("#notificationsSection").classList.remove("hidden");$("#supportSection").classList.add("hidden");$("#productList").classList.add("hidden");$("#ordersSection").classList.add("hidden");$("#receiptLogsSection").classList.add("hidden");await loadNotificationHistory();
 });
 $("#closeNotifications").addEventListener("click",()=>{$("#notificationsSection").classList.add("hidden");$("#productList").classList.remove("hidden")});
 $("#notificationForm").addEventListener("submit",async e=>{
   e.preventDefault();$("#notificationResult").textContent="";
   try{await api("/api/admin/notifications",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:$("#notificationMessage").value,targetDiscordId:$("#notificationTarget").value.trim()})});$("#notificationMessage").value="";$("#notificationTarget").value="";$("#notificationResult").textContent="Notification sent.";await loadNotificationHistory()}catch(err){$("#notificationResult").textContent=err.message}
 });
+
+
+// Technical support inbox
+let activeSupportId="",supportPoll=null;
+function supportDate(v){try{return new Intl.DateTimeFormat("en-GB",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}).format(new Date(v))}catch{return String(v||"")}}
+async function loadSupportThreads(keepSelection=true){
+  const rows=await api("/api/admin/support");
+  const unread=rows.reduce((a,x)=>a+Number(x.unreadAdmin||0),0);
+  $("#supportUnreadBadge").textContent=unread;
+  $("#supportUnreadBadge").classList.toggle("hidden",unread===0);
+  $("#supportThreadList").innerHTML=rows.map(t=>`<button class="support-thread ${t.id===activeSupportId?'active':''}" data-support-id="${esc(t.id)}"><div class="support-thread-top"><div><b>${esc(t.customer?.name||'Visitor')}</b><small>${supportDate(t.updatedAt)}</small></div>${Number(t.unreadAdmin||0)>0?`<span class="thread-unread">${Number(t.unreadAdmin||0)}</span>`:`<span class="thread-status ${t.status==='closed'?'closed':''}">${esc(t.status||'open')}</span>`}</div><p>${esc(t.lastMessage||'No messages yet')}</p></button>`).join("")||'<div class="empty-admin">No support messages yet.</div>';
+  if(keepSelection&&activeSupportId&&rows.some(x=>x.id===activeSupportId))await loadSupportConversation(activeSupportId,false);
+}
+async function loadSupportConversation(id,refreshList=true){
+  activeSupportId=id;
+  const t=await api(`/api/admin/support/${encodeURIComponent(id)}`);
+  const discord=t.customer?.discordUsername?` · Discord @${esc(t.customer.discordUsername)}`:"";
+  $("#supportConversationHead").innerHTML=`<div><b>${esc(t.customer?.name||'Visitor')}</b><small>${esc(t.customer?.discordId||'Guest session')}${discord}</small></div><button class="support-close-btn" data-support-status="${t.status==='closed'?'open':'closed'}">${t.status==='closed'?'Reopen':'Close conversation'}</button>`;
+  $("#supportMessages").innerHTML=(t.messages||[]).map(m=>`<div class="admin-chat-msg ${m.from==='support'?'support':'customer'}">${esc(m.message)}<small>${m.from==='support'?'Support':'Customer'} · ${supportDate(m.createdAt)}</small></div>`).join("")||'<div class="empty-admin">No messages yet.</div>';
+  $("#supportMessages").scrollTop=$("#supportMessages").scrollHeight;
+  $("#supportReply").disabled=false;$("#supportReplyButton").disabled=false;
+  document.querySelectorAll(".support-thread").forEach(x=>x.classList.toggle("active",x.dataset.supportId===id));
+  if(refreshList)await loadSupportThreads(false);
+}
+$("#showSupport").addEventListener("click",async()=>{$("#supportSection").classList.remove("hidden");$("#productList").classList.add("hidden");$("#notificationsSection").classList.add("hidden");$("#ordersSection").classList.add("hidden");$("#receiptLogsSection").classList.add("hidden");await loadSupportThreads(false);clearInterval(supportPoll);supportPoll=setInterval(()=>loadSupportThreads(true).catch(()=>{}),4000)});
+$("#closeSupport").addEventListener("click",()=>{$("#supportSection").classList.add("hidden");$("#productList").classList.remove("hidden");clearInterval(supportPoll);supportPoll=null});
+$("#supportThreadList").addEventListener("click",e=>{const b=e.target.closest("[data-support-id]");if(b)loadSupportConversation(b.dataset.supportId).catch(err=>alert(err.message))});
+$("#supportReplyForm").addEventListener("submit",async e=>{e.preventDefault();if(!activeSupportId)return;const message=$("#supportReply").value.trim();if(!message)return;$("#supportReplyButton").disabled=true;try{await api(`/api/admin/support/${encodeURIComponent(activeSupportId)}/messages`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message})});$("#supportReply").value="";await loadSupportConversation(activeSupportId)}catch(err){alert(err.message)}finally{$("#supportReplyButton").disabled=false}});
+$("#supportConversationHead").addEventListener("click",async e=>{const b=e.target.closest("[data-support-status]");if(!b||!activeSupportId)return;await api(`/api/admin/support/${encodeURIComponent(activeSupportId)}/status`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:b.dataset.supportStatus})});await loadSupportConversation(activeSupportId)});
+setInterval(()=>{if(!$("#dashboard").classList.contains("hidden"))loadSupportThreads(false).catch(()=>{})},15000);

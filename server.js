@@ -18,6 +18,8 @@ const PRODUCTS=path.join(DATA,"products.json");
 const ORDERS=path.join(DATA,"orders.json");
 const RECEIPT_LOGS=path.join(DATA,"receipt-logs.json");
 const NOTIFICATIONS=path.join(DATA,"notifications.json");
+const PRODUCT_COMMENTS=path.join(DATA,"product-comments.json");
+const SUPPORT_CHATS=path.join(DATA,"support-chats.json");
 const RECEIPT_DIR=path.join(UPLOADS,"receipts");
 fs.mkdirSync(DATA,{recursive:true});fs.mkdirSync(UPLOADS,{recursive:true});fs.mkdirSync(RECEIPT_DIR,{recursive:true});
 
@@ -25,7 +27,7 @@ function read(file,fallback){try{return fs.existsSync(file)?JSON.parse(fs.readFi
 function write(file,data){const tmp=file+".tmp";fs.writeFileSync(tmp,JSON.stringify(data,null,2));fs.renameSync(tmp,file)}
 function products(){return read(PRODUCTS,[])}function saveProducts(v){write(PRODUCTS,v)}function orders(){return read(ORDERS,[])}function saveOrders(v){write(ORDERS,v)}
 function nextId(rows){return rows.reduce((m,x)=>Math.max(m,Number(x.id||0)),0)+1}
-if(!fs.existsSync(PRODUCTS))saveProducts([]);if(!fs.existsSync(ORDERS))saveOrders([]);if(!fs.existsSync(RECEIPT_LOGS))write(RECEIPT_LOGS,[]);if(!fs.existsSync(NOTIFICATIONS))write(NOTIFICATIONS,[]);
+if(!fs.existsSync(PRODUCTS))saveProducts([]);if(!fs.existsSync(ORDERS))saveOrders([]);if(!fs.existsSync(RECEIPT_LOGS))write(RECEIPT_LOGS,[]);if(!fs.existsSync(NOTIFICATIONS))write(NOTIFICATIONS,[]);if(!fs.existsSync(PRODUCT_COMMENTS))write(PRODUCT_COMMENTS,{});if(!fs.existsSync(SUPPORT_CHATS))write(SUPPORT_CHATS,[]);
 
 app.set("trust proxy",1);
 app.use(helmet({
@@ -81,35 +83,10 @@ const receiptUpload=multer({
 });
 
 
-function adminTokenSecret(){return String(process.env.SESSION_SECRET||process.env.ADMIN_PASSWORD||"CHANGE_ME")}
-function issueAdminToken(){
-  const exp=Date.now()+1000*60*60*8;
-  const payload=`admin.${exp}`;
-  const sig=crypto.createHmac("sha256",adminTokenSecret()).update(payload).digest("hex");
-  return `${payload}.${sig}`;
-}
-function validAdminToken(req){
-  const auth=String(req.get("Authorization")||"");
-  if(!auth.startsWith("Bearer "))return false;
-  const token=auth.slice(7).trim();
-  const parts=token.split(".");
-  if(parts.length!==3||parts[0]!=="admin")return false;
-  const exp=Number(parts[1]);
-  if(!Number.isFinite(exp)||Date.now()>exp)return false;
-  const payload=`admin.${parts[1]}`;
-  const expected=crypto.createHmac("sha256",adminTokenSecret()).update(payload).digest("hex");
-  const a=Buffer.from(expected),b=Buffer.from(parts[2]||"");
-  return a.length===b.length&&crypto.timingSafeEqual(a,b);
-}
-function isAdmin(req){return req.session?.isAdmin===true||validAdminToken(req)}
+function isAdmin(req){return req.session?.isAdmin===true}
 function ensureCsrf(req){if(!req.session.csrfToken)req.session.csrfToken=crypto.randomBytes(32).toString("hex");return req.session.csrfToken}
 function requireAdmin(req,res,next){if(!isAdmin(req))return res.status(401).json({message:"Unauthorized"});next()}
-function requireCsrf(req,res,next){
-  if(validAdminToken(req))return next();
-  const token=String(req.get("X-CSRF-Token")||"");
-  if(!req.session?.isAdmin||!req.session.csrfToken||token!==req.session.csrfToken)return res.status(403).json({message:"Invalid security token"});
-  next();
-}
+function requireCsrf(req,res,next){const token=String(req.get("X-CSRF-Token")||"");if(!isAdmin(req)||!req.session.csrfToken||token!==req.session.csrfToken)return res.status(403).json({message:"Invalid security token"});next()}
 function cleanSlug(v){return String(v||"").trim().toLowerCase().replace(/[^a-z0-9-_]+/g,"-").replace(/^-+|-+$/g,"").slice(0,80)}
 function sorted(rows){return [...rows].sort((a,b)=>(Number(a.sortOrder||0)-Number(b.sortOrder||0))||(Number(b.id)-Number(a.id)))}
 function isPremiumSubscriptionProduct(p){return String(p?.productType||'')==='premium_subscription'||String(p?.slug||'')==='fivevault-premium'}
@@ -125,6 +102,28 @@ function getCommentsForProduct(id){const all=commentStore();const key=commentKey
   return entry;
 }
 function saveCommentsForProduct(id,entry){const all=commentStore();all[commentKey(id)]=entry;write(PRODUCT_COMMENTS,all);return entry;}
+
+function supportChats(){return read(SUPPORT_CHATS,[])}
+function saveSupportChats(rows){write(SUPPORT_CHATS,rows)}
+function validSupportToken(value){return /^[a-f0-9-]{16,64}$/i.test(String(value||""))}
+function publicSupportThread(thread){
+  if(!thread)return null;
+  return {
+    id:thread.id,
+    status:thread.status||"open",
+    createdAt:thread.createdAt,
+    updatedAt:thread.updatedAt,
+    messages:Array.isArray(thread.messages)?thread.messages.map(m=>({id:m.id,from:m.from,message:m.message,createdAt:m.createdAt})):[]
+  };
+}
+function customerForSupport(req,token){
+  const u=req.session?.discordUser;
+  return {
+    name:u?(u.globalName||u.username||"Discord User"):`Visitor ${String(token).slice(-4).toUpperCase()}`,
+    discordId:u?.id||"",
+    discordUsername:u?.username||""
+  };
+}
 function computeStoreStats(){
   const rows=read(RECEIPT_LOGS,[]);
   const uniqueCustomers=new Set();
@@ -147,7 +146,7 @@ function computeStoreStats(){
 
 app.use("/assets",express.static(path.join(PUBLIC,"assets"),{maxAge:"1d"}));
 app.use("/uploads",express.static(UPLOADS,{maxAge:"1d",fallthrough:false}));
-["store.css","commerce.css","checkout.css","admin.css","orders.css","product.css","store-config.js","shop.js","cart.js","checkout.js","admin.js","orders.js","product.js"].forEach(file=>{
+["store.css","commerce.css","checkout.css","admin.css","orders.css","product.css","support-chat.css","store-config.js","shop.js","cart.js","checkout.js","admin.js","orders.js","product.js","support-chat.js"].forEach(file=>{
   app.get("/"+file,(_req,res)=>res.sendFile(path.join(PUBLIC,file)));
 });
 app.get("/",(_req,res)=>res.sendFile(path.join(PUBLIC,"index.html")));
@@ -259,27 +258,85 @@ app.get("/api/products/slug/:slug",(req,res)=>{
   res.json(publicProduct(req,p));
 });
 
-app.get("/api/admin/session",(req,res)=>res.json({authenticated:isAdmin(req),csrfToken:req.session?.isAdmin?ensureCsrf(req):null}));
+
+// Built-in technical support chat
+app.get("/api/support/thread/:token",(req,res)=>{
+  const token=String(req.params.token||"");
+  if(!validSupportToken(token))return res.status(400).json({message:"Invalid support session."});
+  const rows=supportChats(),i=rows.findIndex(x=>x.id===token);
+  if(i<0)return res.json({thread:null});
+  if(Number(rows[i].unreadCustomer||0)>0){rows[i].unreadCustomer=0;saveSupportChats(rows)}
+  res.json({thread:publicSupportThread(rows[i])});
+});
+
+app.post("/api/support/message",(req,res)=>{
+  const token=String(req.body?.token||"");
+  const message=String(req.body?.message||"").trim();
+  if(!validSupportToken(token))return res.status(400).json({message:"Invalid support session."});
+  if(!message)return res.status(400).json({message:"Write a message first."});
+  if(message.length>1200)return res.status(400).json({message:"Message is too long."});
+  const rows=supportChats();
+  let i=rows.findIndex(x=>x.id===token);
+  const now=new Date().toISOString();
+  if(i<0){
+    rows.push({id:token,customer:customerForSupport(req,token),status:"open",unreadAdmin:0,unreadCustomer:0,createdAt:now,updatedAt:now,messages:[]});
+    i=rows.length-1;
+  }
+  const thread=rows[i];
+  thread.customer=customerForSupport(req,token);
+  thread.status="open";
+  const list=Array.isArray(thread.messages)?thread.messages:[];
+  list.push({id:nextId(list),from:"customer",message,createdAt:now});
+  thread.messages=list.slice(-300);
+  thread.unreadAdmin=Number(thread.unreadAdmin||0)+1;
+  thread.updatedAt=now;
+  saveSupportChats(rows);
+  res.json({ok:true,thread:publicSupportThread(thread)});
+});
+
+app.get("/api/admin/support",requireAdmin,(_req,res)=>{
+  const rows=supportChats().sort((a,b)=>String(b.updatedAt||"").localeCompare(String(a.updatedAt||"")));
+  res.json(rows.map(t=>({id:t.id,customer:t.customer||{},status:t.status||"open",unreadAdmin:Number(t.unreadAdmin||0),unreadCustomer:Number(t.unreadCustomer||0),createdAt:t.createdAt,updatedAt:t.updatedAt,lastMessage:(Array.isArray(t.messages)&&t.messages.length?t.messages[t.messages.length-1].message:"")})));
+});
+
+app.get("/api/admin/support/:id",requireAdmin,(req,res)=>{
+  const rows=supportChats(),i=rows.findIndex(x=>x.id===String(req.params.id||""));
+  if(i<0)return res.status(404).json({message:"Conversation not found."});
+  if(Number(rows[i].unreadAdmin||0)>0){rows[i].unreadAdmin=0;saveSupportChats(rows)}
+  res.json({...publicSupportThread(rows[i]),customer:rows[i].customer||{}});
+});
+
+app.post("/api/admin/support/:id/messages",requireAdmin,requireCsrf,(req,res)=>{
+  const message=String(req.body?.message||"").trim();
+  if(!message)return res.status(400).json({message:"Write a reply first."});
+  if(message.length>1200)return res.status(400).json({message:"Reply is too long."});
+  const rows=supportChats(),i=rows.findIndex(x=>x.id===String(req.params.id||""));
+  if(i<0)return res.status(404).json({message:"Conversation not found."});
+  const now=new Date().toISOString(),thread=rows[i],list=Array.isArray(thread.messages)?thread.messages:[];
+  list.push({id:nextId(list),from:"support",message,createdAt:now});
+  thread.messages=list.slice(-300);thread.status="open";thread.unreadAdmin=0;thread.unreadCustomer=Number(thread.unreadCustomer||0)+1;thread.updatedAt=now;
+  saveSupportChats(rows);
+  res.json({ok:true,thread:{...publicSupportThread(thread),customer:thread.customer||{}}});
+});
+
+app.patch("/api/admin/support/:id/status",requireAdmin,requireCsrf,(req,res)=>{
+  const status=String(req.body?.status||"");
+  if(!["open","closed"].includes(status))return res.status(400).json({message:"Invalid conversation status."});
+  const rows=supportChats(),i=rows.findIndex(x=>x.id===String(req.params.id||""));
+  if(i<0)return res.status(404).json({message:"Conversation not found."});
+  rows[i].status=status;rows[i].updatedAt=new Date().toISOString();saveSupportChats(rows);
+  res.json({ok:true,status});
+});
+
+app.get("/api/admin/session",(req,res)=>res.json({authenticated:isAdmin(req),csrfToken:isAdmin(req)?ensureCsrf(req):null}));
 app.post("/api/admin/login",authLimiter,(req,res)=>{
   const expected=String(process.env.ADMIN_PASSWORD||""),supplied=String(req.body?.password||"");
   if(!expected||expected==="CHANGE_THIS_TO_A_LONG_RANDOM_PASSWORD")return res.status(503).json({message:"Set ADMIN_PASSWORD in .env first."});
   const a=Buffer.from(expected),b=Buffer.from(supplied);
   if(a.length!==b.length||!crypto.timingSafeEqual(a,b))return res.status(401).json({message:"Incorrect password."});
-  req.session.regenerate(err=>{
-    if(err)return res.status(500).json({message:"Session error"});
-    req.session.isAdmin=true;
-    const csrfToken=ensureCsrf(req);
-    const adminToken=issueAdminToken();
-    req.session.save(saveErr=>{
-      if(saveErr)return res.status(500).json({message:"Session save error"});
-      res.json({ok:true,csrfToken,adminToken});
-    });
-  });
+  req.session.regenerate(err=>{if(err)return res.status(500).json({message:"Session error"});req.session.isAdmin=true;const csrfToken=ensureCsrf(req);res.json({ok:true,csrfToken})});
 });
-app.post("/api/admin/logout",requireAdmin,requireCsrf,(req,res)=>{
-  if(req.session)return req.session.destroy(()=>res.json({ok:true}));
-  res.json({ok:true});
-});
+app.post("/api/admin/logout",requireAdmin,requireCsrf,(req,res)=>req.session.destroy(()=>res.json({ok:true})));
 app.get("/api/admin/products",requireAdmin,(_req,res)=>res.json(sorted(products())));
 
 app.post("/api/admin/products",requireAdmin,requireCsrf,upload.fields([{name:"image",maxCount:1},{name:"previewImages",maxCount:12}]),(req,res)=>{
@@ -528,4 +585,4 @@ app.use((err,req,res,next)=>{
 });
 
 app.use((_req,res)=>res.status(404).send("Not found"));
-app.listen(PORT,()=>{console.log(`Eleven Store v6.1.1 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});
+app.listen(PORT,()=>{console.log(`Eleven Store v6.3 Support running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});

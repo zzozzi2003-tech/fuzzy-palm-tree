@@ -4,6 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Product | Eleven Store</title>
 <link rel="stylesheet" href="/product.css">
+<link rel="stylesheet" href="/support-chat.css">
 </head>
 <body>
 <header class="site-header"><div class="shell header-inner">
@@ -24,7 +25,7 @@
       <div class="quantity-row"><span>Quantity</span><div class="qty"><button id="qtyMinus">−</button><b id="qtyValue">1</b><button id="qtyPlus">+</button></div></div>
       <button class="buy-btn primary" id="addToCartBtn">🛍 Add to cart</button>
       <button class="buy-btn secondary" id="buyNowBtn">⚡ Buy now</button>
-      <div class="benefits"><div><span>🎧</span><b>Support</b><small>Fast Discord support</small></div><div><span>🛡</span><b>Original files</b><small>Clean delivery flow</small></div><div><span>⚡</span><b>Fast delivery</b><small>After payment confirmation</small></div></div>
+      <div class="benefits"><div><span>🎧</span><b>Support</b><small>Built-in live support</small></div><div><span>🛡</span><b>Original files</b><small>Clean delivery flow</small></div><div><span>⚡</span><b>Fast delivery</b><small>After payment confirmation</small></div></div>
       <div class="share-row"><span>Share product</span><a href="https://discord.gg/NzmA4xDnT" target="_blank">Discord</a><button id="copyLink">Copy link</button></div>
     </article>
 
@@ -36,7 +37,7 @@
   </section>
 
   <section class="comments-section">
-    <div class="comments-head"><div><span class="eyebrow">COMMUNITY</span><h2>Comments & Reactions</h2></div><a href="https://discord.gg/NzmA4xDnT" target="_blank" class="support-link">Support</a></div>
+    <div class="comments-head"><div><span class="eyebrow">COMMUNITY</span><h2>Comments & Reactions</h2></div><button type="button" data-open-support class="support-link">Support</button></div>
     <div class="reaction-row" id="reactionRow"></div>
     <div class="comments-grid"><div id="commentsList" class="comments-list"></div><form id="commentForm" class="comment-form"><label>Name</label><input id="commentName" maxlength="40" placeholder="Your name"><label>Comment</label><textarea id="commentMessage" maxlength="1000" placeholder="Write a comment..." required></textarea><button>Post comment</button></form></div>
   </section>
@@ -46,4 +47,5 @@
 
 <div id="lightbox" class="lightbox hidden"><button id="closeLightbox">×</button><img id="lightboxImage"></div>
 <script src="/store-config.js"></script><script src="/product.js"></script>
+<script src="/support-chat.js"></script>
 </body></html>
