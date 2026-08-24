@@ -17,6 +17,7 @@ const UPLOADS=path.join(ROOT,"uploads");
 const PRODUCTS=path.join(DATA,"products.json");
 const ORDERS=path.join(DATA,"orders.json");
 const RECEIPT_LOGS=path.join(DATA,"receipt-logs.json");
+const NOTIFICATIONS=path.join(DATA,"notifications.json");
 const RECEIPT_DIR=path.join(UPLOADS,"receipts");
 fs.mkdirSync(DATA,{recursive:true});fs.mkdirSync(UPLOADS,{recursive:true});fs.mkdirSync(RECEIPT_DIR,{recursive:true});
 
@@ -24,7 +25,7 @@ function read(file,fallback){try{return fs.existsSync(file)?JSON.parse(fs.readFi
 function write(file,data){const tmp=file+".tmp";fs.writeFileSync(tmp,JSON.stringify(data,null,2));fs.renameSync(tmp,file)}
 function products(){return read(PRODUCTS,[])}function saveProducts(v){write(PRODUCTS,v)}function orders(){return read(ORDERS,[])}function saveOrders(v){write(ORDERS,v)}
 function nextId(rows){return rows.reduce((m,x)=>Math.max(m,Number(x.id||0)),0)+1}
-if(!fs.existsSync(PRODUCTS))saveProducts([]);if(!fs.existsSync(ORDERS))saveOrders([]);if(!fs.existsSync(RECEIPT_LOGS))write(RECEIPT_LOGS,[]);
+if(!fs.existsSync(PRODUCTS))saveProducts([]);if(!fs.existsSync(ORDERS))saveOrders([]);if(!fs.existsSync(RECEIPT_LOGS))write(RECEIPT_LOGS,[]);if(!fs.existsSync(NOTIFICATIONS))write(NOTIFICATIONS,[]);
 
 app.set("trust proxy",1);
 app.use(helmet({
@@ -89,11 +90,12 @@ function sorted(rows){return [...rows].sort((a,b)=>(Number(a.sortOrder||0)-Numbe
 
 app.use("/assets",express.static(path.join(PUBLIC,"assets"),{maxAge:"1d"}));
 app.use("/uploads",express.static(UPLOADS,{maxAge:"1d",fallthrough:false}));
-["store.css","commerce.css","checkout.css","admin.css","store-config.js","shop.js","cart.js","checkout.js","admin.js"].forEach(file=>{
+["store.css","commerce.css","checkout.css","admin.css","orders.css","store-config.js","shop.js","cart.js","checkout.js","admin.js","orders.js"].forEach(file=>{
   app.get("/"+file,(_req,res)=>res.sendFile(path.join(PUBLIC,file)));
 });
 app.get("/",(_req,res)=>res.sendFile(path.join(PUBLIC,"index.html")));
 app.get("/cart",(_req,res)=>res.sendFile(path.join(PUBLIC,"cart.html")));
+app.get("/orders",(_req,res)=>res.sendFile(path.join(PUBLIC,"orders.html")));
 app.get("/checkout",(_req,res)=>res.sendFile(path.join(PUBLIC,"checkout.html")));
 app.get("/payment-success",(_req,res)=>res.sendFile(path.join(PUBLIC,"payment-success.html")));
 app.get("/admin",(_req,res)=>res.sendFile(path.join(PUBLIC,"admin.html")));
@@ -164,6 +166,26 @@ app.get("/auth/discord/callback",async(req,res)=>{
 app.get("/api/auth/discord",(req,res)=>{
   const u=req.session?.discordUser;
   res.json({connected:Boolean(u),user:u||null});
+});
+
+
+app.get("/api/notifications",(req,res)=>{
+  const rows=read(NOTIFICATIONS,[]);
+  const discordId=req.session?.discordUser?.id||"";
+  const visible=rows.filter(n=>!n.targetDiscordId||String(n.targetDiscordId)===String(discordId))
+    .sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
+  res.json(visible.slice(0,20));
+});
+
+app.get("/api/my-orders",(req,res)=>{
+  const discordId=req.session?.discordUser?.id;
+  if(!discordId)return res.status(401).json({message:"Connect Discord to view your orders."});
+  const status=String(req.query.status||"all");
+  const rows=read(RECEIPT_LOGS,[]);
+  const mine=rows.filter(o=>String(o.discord?.id||"")===String(discordId))
+    .filter(o=>status==="all"||o.status===status)
+    .sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
+  res.json(mine);
 });
 
 app.get("/api/products",(_req,res)=>res.json(sorted(products()).filter(p=>p.active!==false)));
@@ -249,6 +271,24 @@ app.patch("/api/admin/orders/:id/status",requireAdmin,requireCsrf,(req,res)=>{
   write(RECEIPT_LOGS,rows);
   console.log(`[ORDER STATUS] ${rows[i].orderNumber} => ${status}`);
   res.json(rows[i]);
+});
+
+
+app.get("/api/admin/notifications",requireAdmin,(_req,res)=>{
+  const rows=read(NOTIFICATIONS,[]);
+  res.json([...rows].sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||""))));
+});
+
+app.post("/api/admin/notifications",requireAdmin,requireCsrf,(req,res)=>{
+  const message=String(req.body?.message||"").trim();
+  const targetDiscordId=String(req.body?.targetDiscordId||"").trim();
+  if(!message)return res.status(400).json({message:"Notification message is required."});
+  if(message.length>500)return res.status(400).json({message:"Notification is too long."});
+  const rows=read(NOTIFICATIONS,[]);
+  const entry={id:nextId(rows),message,targetDiscordId:targetDiscordId||"",createdAt:new Date().toISOString()};
+  rows.push(entry);write(NOTIFICATIONS,rows);
+  console.log(`[MEMBER NOTIFICATION] ${targetDiscordId||"ALL"} | ${message}`);
+  res.json(entry);
 });
 
 const MPK=process.env.GEIDEA_MERCHANT_PUBLIC_KEY||"",APIP=process.env.GEIDEA_API_PASSWORD||"",BASE=(process.env.BASE_URL||"").replace(/\/$/,""),GEIDEA="https://api.ksamerchant.geidea.net/payment-intent/api/v2/direct/session";
@@ -376,4 +416,4 @@ app.use((err,req,res,next)=>{
 });
 
 app.use((_req,res)=>res.status(404).send("Not found"));
-app.listen(PORT,()=>{console.log(`Eleven Store v5.6.1 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});
+app.listen(PORT,()=>{console.log(`Eleven Store v5.7 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});

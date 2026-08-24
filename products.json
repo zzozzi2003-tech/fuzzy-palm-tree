@@ -1,0 +1,58 @@
+[
+  {
+    "id": 1,
+    "slug": "starter",
+    "name": "Starter Package",
+    "tag": "POPULAR",
+    "description": "A clean starter product ready for your own description and delivery flow.",
+    "price": 49,
+    "image": "",
+    "active": true,
+    "sortOrder": 10,
+    "previewImages": []
+  },
+  {
+    "id": 2,
+    "slug": "premium",
+    "name": "Premium Package",
+    "tag": "PREMIUM",
+    "description": "A higher-tier option for customers who want the complete experience.",
+    "price": 99,
+    "image": "",
+    "active": true,
+    "sortOrder": 20,
+    "previewImages": []
+  },
+  {
+    "id": 3,
+    "slug": "custom",
+    "name": "Custom Order",
+    "tag": "CUSTOM",
+    "description": "For custom work, special requests, and personalized orders through Eleven Store.",
+    "price": 149,
+    "image": "",
+    "active": true,
+    "sortOrder": 30,
+    "previewImages": []
+  },
+  {
+    "id": 4,
+    "slug": "programming-services",
+    "name": "خدمات برمجية",
+    "tag": "SERVICE",
+    "description": "Flexible programming services. Choose hourly work from 1 to 4 hours, or select a weekly, half-monthly, monthly, or yearly programming plan.",
+    "price": 0,
+    "image": "",
+    "active": true,
+    "sortOrder": 5,
+    "productType": "programming_service",
+    "servicePricing": {
+      "hourlyRate": 50,
+      "weekly": 500,
+      "halfMonthly": 900,
+      "monthly": 1500,
+      "yearly": 15000
+    },
+    "previewImages": []
+  }
+]

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Eleven Store</title><meta name="theme-color" content="#090909"><link rel="stylesheet" href="/store.css"></head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+<a class="brand" href="/"><img src="/assets/eleven-logo.png"><span>ELEVEN</span></a>
+<nav class="main-nav"><a class="active" href="/">Store</a><a href="/orders">My Orders</a><a href="https://discord.gg/NzmA4xDnT" target="_blank">Discord</a></nav>
+<div class="top-actions"><div class="search-box"><span>⌕</span><input id="searchInput" placeholder="Search products"></div><a class="order-link" href="/orders">Track Order</a><a class="cart-btn" href="/cart">Cart <b id="cartCount">0</b></a></div>
+</div></header>
+<div id="announcementBar" class="announcement-bar hidden"><div class="announcement-inner"><span id="announcementText"></span><button id="closeAnnouncement">×</button></div></div>
+<div class="page-shell">
+<aside class="sidebar">
+<div class="side-block"><span class="side-title">SEARCH</span><div class="side-search"><span>⌕</span><input id="sideSearch" placeholder="Search releases"></div></div>
+<div class="side-block"><span class="side-title">SORT BY</span><select id="sortSelect"><option value="newest">Newest First</option><option value="price-low">Price: Low to High</option><option value="price-high">Price: High to Low</option></select></div>
+<div class="side-block"><span class="side-title">PRICING</span><div class="price-tabs"><button class="active" data-price-filter="all">All</button><button data-price-filter="free">Free</button><button data-price-filter="paid">Paid</button></div></div>
+<div class="side-block"><span class="side-title">CATEGORY</span><div class="category-list">
+<button class="active" data-category="all"><span>▦</span><b>All Resources</b><em id="countAll">0</em></button>
+<button data-category="scripts"><span>⌘</span><b>Scripts</b><em id="countScripts">0</em></button>
+<button data-category="services"><span>⚙</span><b>Services</b><em id="countServices">0</em></button>
+<button data-category="other"><span>◆</span><b>Other</b><em id="countOther">0</em></button></div></div>
+<div class="side-block support-card"><span class="side-title">NEED HELP?</span><strong>Join our Discord</strong><p>Order support, delivery and questions.</p><a href="https://discord.gg/NzmA4xDnT" target="_blank">Open Discord</a></div>
+</aside>
+<main class="content"><div class="content-head"><div><span class="eyebrow">LATEST RELEASES</span><h1><span id="productCount">0</span> products</h1></div></div><section id="products" class="product-grid"></section></main>
+</div>
+<footer><div class="footer-inner"><div class="brand"><img src="/assets/eleven-logo.png"><span>ELEVEN STORE</span></div><span>© <span id="year"></span> Eleven Store</span><a href="https://discord.gg/NzmA4xDnT" target="_blank">Discord</a></div></footer>
+<script src="/store-config.js"></script><script src="/shop.js"></script></body></html>

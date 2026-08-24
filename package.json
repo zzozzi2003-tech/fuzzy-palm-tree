@@ -1,6 +1,6 @@
 {
   "name": "eleven-store",
-  "version": "5.6.1",
+  "version": "5.7.0",
   "private": true,
   "scripts": {
     "start": "node server.js"

@@ -1,0 +1,118 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin | Eleven Store</title>
+<link rel="stylesheet" href="/admin.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="brand" href="/"><img src="/assets/eleven-logo.png"><span>Eleven Store</span></a>
+    <div class="header-actions">
+      <a class="ghost-btn" href="/" target="_blank">View Store</a>
+      <button id="logout" class="ghost-btn hidden">Logout</button>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+  <section id="loginView" class="login-card">
+    <span class="eyebrow">ADMIN DASHBOARD</span>
+    <h1>Eleven Store Admin</h1>
+    <p>Secure management for your store.</p>
+    <form id="loginForm">
+      <input id="password" type="password" placeholder="Admin password" required>
+      <button class="primary-btn">Login</button>
+    </form>
+    <small id="loginMessage"></small>
+  </section>
+
+  <section id="dashboard" class="hidden">
+    <div class="dash-head">
+      <div>
+        <span class="eyebrow">PRODUCTS</span>
+        <h1>Store Dashboard</h1>
+        <p>Manage products, images, prices, visibility and ordering.</p>
+      </div>
+      <div class="dash-actions"><button id="showNotifications" class="ghost-btn">Notify Members</button><button id="showOrders" class="ghost-btn">Orders</button><button id="showReceiptLogs" class="ghost-btn">Payment Logs</button><button id="newProduct" class="primary-btn">+ Add Product</button></div>
+    </div>
+
+    <div class="stats">
+      <article><span>Total products</span><strong id="totalProducts">0</strong></article>
+      <article><span>Active products</span><strong id="activeProducts">0</strong></article>
+      <article><span>Store currency</span><strong>SAR</strong></article>
+    </div>
+
+    <div id="productList" class="product-list"></div><section id="notificationsSection" class="notifications-section hidden">
+<div class="logs-head"><div><span class="eyebrow">MEMBERS</span><h2>Send Notification</h2></div><button id="closeNotifications" class="ghost-btn">Close</button></div>
+<form id="notificationForm" class="notification-form">
+<label>Message<textarea id="notificationMessage" rows="4" placeholder="Write the notification members will see..." required></textarea></label>
+<label>Target Discord ID <span>(optional)</span><input id="notificationTarget" placeholder="Leave empty to notify everyone"></label>
+<button class="primary-btn">Send Notification</button><small id="notificationResult"></small>
+</form><div id="notificationHistory" class="notification-history"></div></section>
+<section id="ordersSection" class="orders-section hidden">
+          <div class="logs-head"><div><span class="eyebrow">ORDERS</span><h2>Order Management</h2></div><button id="closeOrders" class="ghost-btn">Close</button></div>
+          <div class="order-tabs"><button class="active" data-order-filter="processing">Processing</button><button data-order-filter="delivered">Old Orders</button></div>
+          <div id="ordersList" class="receipt-logs"></div>
+        </section>
+        <section id="receiptLogsSection" class="receipt-logs-section hidden"><div class="logs-head"><div><span class="eyebrow">PAYMENTS</span><h2>Receipt Logs</h2></div><button id="closeReceiptLogs" class="ghost-btn">Close</button></div><div id="receiptLogs" class="receipt-logs"></div></section>
+  </section>
+</main>
+
+<div id="productModal" class="drawer-wrap hidden">
+  <div class="drawer-shade" data-close-product></div>
+  <aside class="drawer">
+    <button class="drawer-close" data-close-product>×</button>
+    <span class="eyebrow">PRODUCT EDITOR</span>
+    <h2 id="editorTitle">Add Product</h2>
+
+    <form id="productForm">
+      <input type="hidden" id="productId">
+      <label>Product name<input id="name" name="name" required></label>
+      <div class="two">
+        <label>Slug<input id="slug" name="slug"></label>
+        <label>Tag<input id="tag" name="tag"></label>
+      </div>
+      <label>Description<textarea id="description" name="description" rows="5"></textarea></label>
+      <div class="two">
+        <label>Price (SAR)<input id="price" name="price" type="number" step="0.01" min="0"></label>
+        <label>Sort order<input id="sortOrder" name="sortOrder" type="number"></label>
+      </div>
+      <label>Main product image
+        <input id="image" name="image" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
+      </label>
+      <label>Preview images
+        <input id="previewImages" name="previewImages" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple>
+        <small class="field-note">Upload multiple images. Customers can browse them in Preview.</small>
+      </label>
+      <div id="existingPreviews" class="existing-previews hidden"></div><label>Product type
+        <select id="productType">
+          <option value="standard">Standard Product</option>
+          <option value="programming_service">Programming Service</option>
+        </select>
+      </label>
+      <div id="servicePricingFields" class="service-pricing hidden">
+        <span class="service-section-title">Programming Service Prices</span>
+        <div class="two">
+          <label>Hourly rate (SAR)<input id="hourlyRate" type="number" min="0" step="0.01"></label>
+          <label>Weekly (SAR)<input id="weeklyPrice" type="number" min="0" step="0.01"></label>
+        </div>
+        <div class="two">
+          <label>Half monthly (SAR)<input id="halfMonthlyPrice" type="number" min="0" step="0.01"></label>
+          <label>Monthly (SAR)<input id="monthlyPrice" type="number" min="0" step="0.01"></label>
+        </div>
+        <label>Yearly (SAR)<input id="yearlyPrice" type="number" min="0" step="0.01"></label>
+      </div>
+      <label class="toggle"><input id="active" type="checkbox" checked> Show product in store</label>
+      <div id="previewWrap" class="preview hidden"><img id="preview"></div>
+      <button id="saveProduct" class="primary-btn full">Save Product</button>
+      <small id="editorMessage"></small>
+    </form>
+  </aside>
+</div>
+
+<script src="/admin.js"></script>
+</body>
+</html>
