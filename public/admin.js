@@ -71,7 +71,7 @@ async function load(){
         <h3>${esc(p.name)}</h3>
         <p>${esc(p.description||"")}</p>
       </div>
-      <div class="admin-price">SAR ${Number(p.price).toLocaleString("en-US",{maximumFractionDigits:2})}</div>
+      <div class="admin-price">${p.productType==="programming_service"?"SERVICE":p.productType==="premium_subscription"?"PREMIUM":`SAR ${Number(p.price).toLocaleString("en-US",{maximumFractionDigits:2})}`}</div>
       <span class="status ${p.active?"active-status":"hidden-status"}">${p.active?"ACTIVE":"HIDDEN"}</span>
       <div class="actions">
         <button type="button" class="action-btn toggle-btn" data-action="toggle" data-id="${p.id}">${p.active?"Hide":"Show"}</button>

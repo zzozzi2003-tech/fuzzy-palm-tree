@@ -12,14 +12,14 @@
     <div class="wrap topbar-inner">
       <a class="brand" href="/"><img src="/assets/eleven-logo.png" alt="Eleven Store"><span>ELEVEN STORE</span></a>
       <nav class="navlinks">
-        <a class="active" href="/">Store</a>
-        <a href="/orders">Orders</a>
-        <a href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener">Discord</a>
+        <a class="active" href="/" data-i18n="store">Store</a>
+        <a href="/orders" data-i18n="orders">Orders</a>
+        <a href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener" data-i18n="discord">Discord</a>
       </nav>
       <div class="top-actions">
-        <div class="compact-search"><span>⌕</span><input id="topSearch" placeholder="Search"></div>
-        <a class="mini-btn" href="/orders">Track</a>
-        <a class="mini-btn cart-link" href="/cart">Cart <b id="cartCount">0</b></a>
+        <div class="compact-search"><span>⌕</span><input id="topSearch" placeholder="Search" data-i18n-ph="search"></div>
+        <a class="mini-btn" href="/orders" data-i18n="track">Track</a>
+        <a class="mini-btn cart-link" href="/cart"><span data-i18n="cart">Cart</span> <b id="cartCount">0</b></a>
       </div>
     </div>
   </header>
@@ -27,24 +27,37 @@
   <main class="wrap store-layout">
     <aside class="sidebar">
       <div class="filter-box">
-        <label>SEARCH</label>
-        <div class="field with-icon"><span>⌕</span><input id="sideSearch" placeholder="Search by name, words, or resource"></div>
+        <label data-i18n="search">SEARCH</label>
+        <div class="field with-icon"><span>⌕</span><input id="sideSearch" placeholder="Search by name, words, or resource" data-i18n-ph="searchLong"></div>
       </div>
       <div class="filter-box">
-        <label>SORT BY</label>
+        <label data-i18n="sortBy">SORT BY</label>
         <select id="sortSelect">
           <option value="newest">Newest First</option>
           <option value="price-low">Price: Low to High</option>
           <option value="price-high">Price: High to Low</option>
+          <option value="name">Name A-Z</option>
         </select>
       </div>
       <div class="filter-box">
-        <label>CATEGORY</label>
-        <div class="category-stack">
-          <button class="active" data-category="all"><span>◈</span><b>All Resources</b></button>
-          <button data-category="mlo"><span>⌂</span><b>MLOs</b></button>
-          <button data-category="scripts"><span>⌘</span><b>Scripts</b></button>
-          <button data-category="services"><span>⚙</span><b>Services</b></button>
+        <label data-i18n="category">CATEGORY</label>
+        <div class="category-stack" id="categoryButtons">
+          <button class="active" data-category="all"><span>◈</span><b data-i18n="allRes">All Resources</b><em id="count-all">0</em></button>
+          <button data-category="mlo"><span>⌂</span><b data-i18n="mlos">MLOs</b><em id="count-mlo">0</em></button>
+          <button data-category="scripts"><span>⌘</span><b data-i18n="scripts">Scripts</b><em id="count-scripts">0</em></button>
+          <button data-category="clothes"><span>⌗</span><b data-i18n="clothes">Clothes</b><em id="count-clothes">0</em></button>
+          <button data-category="mods"><span>⌁</span><b data-i18n="mods">Mods</b><em id="count-mods">0</em></button>
+          <button data-category="vehicles"><span>◌</span><b data-i18n="vehicles">Vehicles</b><em id="count-vehicles">0</em></button>
+          <button data-category="programs"><span>⚙</span><b data-i18n="programs">Programs</b><em id="count-programs">0</em></button>
+          <button data-category="other"><span>○</span><b data-i18n="other">Other</b><em id="count-other">0</em></button>
+        </div>
+      </div>
+      <div class="filter-box">
+        <label data-i18n="pricing">PRICING</label>
+        <div class="pricing-stack" id="pricingButtons">
+          <button class="active pricing-all" data-pricing="all"><span>$</span><b data-i18n="all">All</b></button>
+          <button data-pricing="free"><span>$</span><b data-i18n="freeOnly">Free Only</b></button>
+          <button data-pricing="paid"><span>$</span><b data-i18n="paidOnly">Paid Only</b></button>
         </div>
       </div>
     </aside>
@@ -55,42 +68,43 @@
           <div class="hero-overlay"></div>
           <div class="hero-copy">
             <span class="eyebrow">ELEVEN PREMIUM STORE</span>
-            <h1>Premium releases, clean UI, fast delivery</h1>
-            <p>Upgrade the storefront UI and offer a premium subscription for customers.</p>
+            <h1 data-i18n="heroTitle">Premium releases, clean UI, fast delivery</h1>
+            <p data-i18n="heroDesc">Upgrade the storefront UI and offer a premium subscription for customers.</p>
           </div>
         </div>
         <div class="ad-grid">
-          <div class="ad-card"><strong>Advertise with us!</strong><small>Premium placement for your project</small></div>
-          <div class="ad-card"><strong>Premium access</strong><small>Every new script free with subscription</small></div>
+          <div class="ad-card"><strong data-i18n="adv">Advertise with us!</strong><small data-i18n="advSmall">Premium placement for your project</small></div>
+          <div class="ad-card"><strong data-i18n="premiumAccess">Premium access</strong><small data-i18n="premiumAccessSmall">Every new script free with subscription</small></div>
         </div>
       </section>
 
       <section class="wide-banner">
         <div>
-          <span class="eyebrow">SUBSCRIBER BENEFIT</span>
-          <strong>Every new script release becomes free for premium members</strong>
+          <span class="eyebrow" data-i18n="subBenefit">SUBSCRIBER BENEFIT</span>
+          <strong data-i18n="subText">Every new script release becomes free for premium members</strong>
         </div>
-        <div class="wide-numbers"><b id="onlineNow">0</b><span>online</span></div>
+        <div class="wide-numbers"><b id="onlineNow">0</b><span data-i18n="online">online</span></div>
       </section>
 
       <section class="stats-premium-grid">
-        <article class="stat-card"><span>Total users</span><strong id="statUsers">0</strong></article>
-        <article class="stat-card"><span>Total downloads</span><strong id="statDownloads">0</strong></article>
-        <article class="stat-card"><span>Latest release</span><strong id="latestRelease">--</strong><small id="latestReleaseName">No releases yet</small></article>
+        <article class="stat-card"><span data-i18n="totalUsers">Total users</span><strong id="statUsers">0</strong></article>
+        <article class="stat-card"><span data-i18n="downloads">Total downloads</span><strong id="statDownloads">0</strong></article>
+        <article class="stat-card"><span data-i18n="latest">Latest release</span><strong id="latestRelease">--</strong><small id="latestReleaseName">No releases yet</small></article>
+        <article class="stat-card"><span data-i18n="offline">Offline now</span><strong id="offlineNow">0</strong><small data-i18n="offlineSmall">Real count + 100 boost</small></article>
         <article class="premium-card" id="premiumPanel">
           <div class="premium-badge">★</div>
           <div>
-            <h2>FiveVault Premium</h2>
-            <p>Any new script release becomes free for you. Priority access and cleaner experience.</p>
+            <h2 id="premiumTitle">FiveVault Premium</h2>
+            <p id="premiumDesc">Any new script release becomes free for you. Priority access and cleaner experience.</p>
           </div>
-          <div class="premium-price">599 SAR</div>
+          <div id="premiumPrice" class="premium-price">599 SAR</div>
           <button id="premiumSubscribeBtn" class="premium-button">Subscribe now</button>
           <small id="premiumState">Premium is not active.</small>
         </article>
       </section>
 
       <section class="toolbar">
-        <div><strong><span id="productCount">0</span></strong> releases</div>
+        <div><strong><span id="productCount">0</span></strong> <span data-i18n="releases">releases</span></div>
         <div class="toolbar-actions">
           <button class="view-chip active">20</button>
           <button class="view-chip">50</button>
@@ -102,6 +116,17 @@
       <section id="products" class="product-grid"></section>
     </section>
   </main>
+
+  <aside class="floating-tools">
+    <div class="lang-wrap">
+      <button id="langBtn" class="float-pill"><span class="lang-dot">EN</span><span>English</span><i>⌃</i></button>
+      <div id="langMenu" class="lang-menu hidden">
+        <button data-lang="en">English</button>
+        <button data-lang="ar">العربية</button>
+      </div>
+    </div>
+    <a id="supportLink" class="float-pill support-pill" href="https://discord.gg/NzmA4xDnT" target="_blank">🛟 <span data-i18n="support">Support</span></a>
+  </aside>
 
   <div id="productPreviewModal" class="modal hidden"></div>
   <div id="serviceModal" class="modal hidden"></div>

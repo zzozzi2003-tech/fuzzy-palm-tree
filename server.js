@@ -94,6 +94,32 @@ function hasPremiumAccess(discordId){if(!discordId)return false;const ps=product
 function effectiveBasePrice(req,p){const premiumActive=hasPremiumAccess(req.session?.discordUser?.id);if(premiumActive&&isPremiumEligibleScript(p))return 0;return Number(p?.price||0)}
 function publicProduct(req,p){const premiumActive=hasPremiumAccess(req.session?.discordUser?.id);const effectivePrice=premiumActive&&isPremiumEligibleScript(p)?0:Number(p.price||0);return {...p,effectivePrice,premiumIncluded:premiumActive&&isPremiumEligibleScript(p),category:categoryForProduct(p)} }
 
+function commentStore(){return read(PRODUCT_COMMENTS,{});}
+function commentKey(id){return String(Number(id)||0);}
+function getCommentsForProduct(id){const all=commentStore();const key=commentKey(id);const entry=all[key]||{comments:[],reactions:{like:0,love:0,wow:0,angry:0}};entry.comments=Array.isArray(entry.comments)?entry.comments:[];entry.reactions=entry.reactions&&typeof entry.reactions==='object'?entry.reactions:{like:0,love:0,wow:0,angry:0};for(const k of ['like','love','wow','angry']) entry.reactions[k]=Number(entry.reactions[k]||0);
+  return entry;
+}
+function saveCommentsForProduct(id,entry){const all=commentStore();all[commentKey(id)]=entry;write(PRODUCT_COMMENTS,all);return entry;}
+function computeStoreStats(){
+  const rows=read(RECEIPT_LOGS,[]);
+  const uniqueCustomers=new Set();
+  let deliveredQty=0;
+  let activeCustomers=0;
+  const activeWindow=Date.now()-1000*60*60*48;
+  for(const o of rows){
+    const key=String(o?.discord?.id||o?.email||o?.phone||"").trim();
+    if(key)uniqueCustomers.add(key);
+    if(String(o?.status||"")==="delivered")deliveredQty+=(Array.isArray(o?.items)?o.items.reduce((a,x)=>a+Number(x.qty||0),0):0);
+    const t=Date.parse(String(o?.createdAt||""));
+    if(Number.isFinite(t)&&t>=activeWindow)activeCustomers++;
+  }
+  const totalUsers=uniqueCustomers.size+100;
+  const onlineNow=activeCustomers+100;
+  const offlineNow=Math.max(totalUsers-onlineNow,100);
+  const totalDownloads=deliveredQty+100;
+  return {totalUsers,onlineNow,offlineNow,totalDownloads};
+}
+
 app.use("/assets",express.static(path.join(PUBLIC,"assets"),{maxAge:"1d"}));
 app.use("/uploads",express.static(UPLOADS,{maxAge:"1d",fallthrough:false}));
 ["store.css","commerce.css","checkout.css","admin.css","orders.css","store-config.js","shop.js","cart.js","checkout.js","admin.js","orders.js"].forEach(file=>{
@@ -182,6 +208,12 @@ app.get("/api/notifications",(req,res)=>{
     .sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
   res.json(visible.slice(0,20));
 });
+
+app.get("/api/store-stats",(_req,res)=>res.json(computeStoreStats()));
+
+app.get("/api/products/:id/comments",(req,res)=>{res.json(getCommentsForProduct(req.params.id));});
+app.post("/api/products/:id/comments",(req,res)=>{try{const productId=Number(req.params.id);const author=String(req.body?.author||req.session?.discordUser?.username||"Anonymous").trim().slice(0,40)||"Anonymous";const message=String(req.body?.message||"").trim().slice(0,1000);if(!productId||!message)return res.status(400).json({message:"Comment text is required."});const entry=getCommentsForProduct(productId);const list=entry.comments;const id=nextId(list);list.unshift({id,author,message,createdAt:new Date().toISOString()});entry.comments=list.slice(0,100);saveCommentsForProduct(productId,entry);res.json({ok:true,comments:entry.comments,reactions:entry.reactions});}catch(e){console.error("Comment post error:",e);res.status(500).json({message:"Could not save comment."})}});
+app.post("/api/products/:id/react",(req,res)=>{try{const productId=Number(req.params.id);const reaction=String(req.body?.reaction||"");if(!productId||!["like","love","wow","angry"].includes(reaction))return res.status(400).json({message:"Invalid reaction."});const entry=getCommentsForProduct(productId);entry.reactions[reaction]=Number(entry.reactions[reaction]||0)+1;saveCommentsForProduct(productId,entry);res.json({ok:true,reactions:entry.reactions});}catch(e){console.error("Reaction error:",e);res.status(500).json({message:"Could not save reaction."})}});
 
 app.get("/api/my-orders",(req,res)=>{
   const discordId=req.session?.discordUser?.id;
@@ -452,4 +484,4 @@ app.use((err,req,res,next)=>{
 });
 
 app.use((_req,res)=>res.status(404).send("Not found"));
-app.listen(PORT,()=>{console.log(`Eleven Store v5.8 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});
+app.listen(PORT,()=>{console.log(`Eleven Store v6.0 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});

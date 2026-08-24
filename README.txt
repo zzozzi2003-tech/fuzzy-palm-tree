@@ -1,17 +1,17 @@
-ELEVEN STORE v5.8 — PREMIUM UI + PREMIUM SUBSCRIPTION
+ELEVEN STORE v6.0 — LANG + SUPPORT + COMMENTS
 
 NEW IN THIS VERSION
-- Storefront UI redesigned closer to the supplied premium reference.
-- Large hero banner, ad cards, stats cards, cleaner product grid.
-- New premium product: FiveVault Premium.
-- Premium price: 599 SAR.
-- Benefit: any new script product becomes free for a premium member.
-- If a Discord user has a delivered premium subscription order, script products show FREE.
-- Free premium script claims can be placed without uploading a receipt.
-- Services are not included in the premium free-claim rule.
-- Existing order tracking and notifications remain available.
+- Added floating bottom-left tools.
+- Language switcher now supports only 2 languages: English and Arabic.
+- Support button now goes directly to your Discord invite: https://discord.gg/NzmA4xDnT
+- Product preview modal is now larger and includes:
+  - main action button
+  - support / save / report buttons
+  - reactions (like / love / wow / angry)
+  - public comments section
+  - comment form
+- Added backend APIs for comments and reactions.
 
-IMPORTANT
-- Premium access is checked using the linked Discord account.
-- To activate premium for a customer, mark the premium subscription order as Delivered in admin.
-- On Render Free, local JSON data and uploaded files may reset after redeploy/restart.
+NOTES
+- Comments and reactions are stored in: data/product_comments.json
+- On free hosting, local JSON files can reset after redeploy/restart.
