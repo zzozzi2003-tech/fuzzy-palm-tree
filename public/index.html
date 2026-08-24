@@ -1,63 +1,112 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#080d18">
-<title>Eleven Store</title>
-<link rel="stylesheet" href="/store.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Eleven Store</title>
+  <meta name="theme-color" content="#090909">
+  <link rel="stylesheet" href="/store.css">
 </head>
 <body>
-<header class="site-header">
-  <div class="container header-inner">
-    <a class="brand" href="/">
-      <img src="/assets/eleven-logo.png" alt="Eleven Store">
-      <span>Eleven Store</span>
-    </a>
-    <nav>
-      <a href="/">Home</a>
-      <a href="#latest">Latest</a>
-      <a href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener">Discord</a>
-    </nav>
-    <div class="header-actions">
-      <div class="search"><input id="searchInput" placeholder="Search products"><span>⌕</span></div>
-      <a class="cart-link" href="/cart">Cart <b id="cartCount">0</b></a>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="/"><img src="/assets/eleven-logo.png" alt="Eleven Store"><span>ELEVEN STORE</span></a>
+      <nav class="navlinks">
+        <a class="active" href="/">Store</a>
+        <a href="/orders">Orders</a>
+        <a href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener">Discord</a>
+      </nav>
+      <div class="top-actions">
+        <div class="compact-search"><span>⌕</span><input id="topSearch" placeholder="Search"></div>
+        <a class="mini-btn" href="/orders">Track</a>
+        <a class="mini-btn cart-link" href="/cart">Cart <b id="cartCount">0</b></a>
+      </div>
     </div>
-  </div>
-</header>
+  </header>
 
-<main>
-<section class="hero container">
-  <div class="hero-copy">
-    <span class="eyebrow">ELEVEN STORE</span>
-    <h1>Premium digital products.<br><span>Built for serious servers.</span></h1>
-    <p>Browse premium resources, add what you need to your cart, and complete your purchase through a clean secure checkout.</p>
-    <div class="hero-actions">
-      <a class="primary-btn" href="#latest">Browse Products</a>
-      <a class="ghost-btn" href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener">Join Discord</a>
-    </div>
-  </div>
-  <div class="hero-logo"><img src="/assets/eleven-logo.png" alt=""></div>
-</section>
+  <main class="wrap store-layout">
+    <aside class="sidebar">
+      <div class="filter-box">
+        <label>SEARCH</label>
+        <div class="field with-icon"><span>⌕</span><input id="sideSearch" placeholder="Search by name, words, or resource"></div>
+      </div>
+      <div class="filter-box">
+        <label>SORT BY</label>
+        <select id="sortSelect">
+          <option value="newest">Newest First</option>
+          <option value="price-low">Price: Low to High</option>
+          <option value="price-high">Price: High to Low</option>
+        </select>
+      </div>
+      <div class="filter-box">
+        <label>CATEGORY</label>
+        <div class="category-stack">
+          <button class="active" data-category="all"><span>◈</span><b>All Resources</b></button>
+          <button data-category="mlo"><span>⌂</span><b>MLOs</b></button>
+          <button data-category="scripts"><span>⌘</span><b>Scripts</b></button>
+          <button data-category="services"><span>⚙</span><b>Services</b></button>
+        </div>
+      </div>
+    </aside>
 
-<section id="latest" class="container products-section">
-  <div class="section-title">
-    <div><span class="eyebrow">LATEST</span><h2>Latest Products</h2></div>
-    <span id="productCount" class="muted"></span>
-  </div>
-  <div id="products" class="product-grid"></div>
-</section>
-</main>
+    <section class="content-area">
+      <section class="hero-strip">
+        <div class="hero-banner">
+          <div class="hero-overlay"></div>
+          <div class="hero-copy">
+            <span class="eyebrow">ELEVEN PREMIUM STORE</span>
+            <h1>Premium releases, clean UI, fast delivery</h1>
+            <p>Upgrade the storefront UI and offer a premium subscription for customers.</p>
+          </div>
+        </div>
+        <div class="ad-grid">
+          <div class="ad-card"><strong>Advertise with us!</strong><small>Premium placement for your project</small></div>
+          <div class="ad-card"><strong>Premium access</strong><small>Every new script free with subscription</small></div>
+        </div>
+      </section>
 
-<footer>
-  <div class="container footer-inner">
-    <div class="brand"><img src="/assets/eleven-logo.png" alt=""><span>Eleven Store</span></div>
-    <span>© <span id="year"></span> Eleven Store</span>
-    <a href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener">Discord</a>
-  </div>
-</footer>
+      <section class="wide-banner">
+        <div>
+          <span class="eyebrow">SUBSCRIBER BENEFIT</span>
+          <strong>Every new script release becomes free for premium members</strong>
+        </div>
+        <div class="wide-numbers"><b id="onlineNow">0</b><span>online</span></div>
+      </section>
 
-<script src="/store-config.js"></script>
-<script src="/shop.js"></script>
+      <section class="stats-premium-grid">
+        <article class="stat-card"><span>Total users</span><strong id="statUsers">0</strong></article>
+        <article class="stat-card"><span>Total downloads</span><strong id="statDownloads">0</strong></article>
+        <article class="stat-card"><span>Latest release</span><strong id="latestRelease">--</strong><small id="latestReleaseName">No releases yet</small></article>
+        <article class="premium-card" id="premiumPanel">
+          <div class="premium-badge">★</div>
+          <div>
+            <h2>FiveVault Premium</h2>
+            <p>Any new script release becomes free for you. Priority access and cleaner experience.</p>
+          </div>
+          <div class="premium-price">599 SAR</div>
+          <button id="premiumSubscribeBtn" class="premium-button">Subscribe now</button>
+          <small id="premiumState">Premium is not active.</small>
+        </article>
+      </section>
+
+      <section class="toolbar">
+        <div><strong><span id="productCount">0</span></strong> releases</div>
+        <div class="toolbar-actions">
+          <button class="view-chip active">20</button>
+          <button class="view-chip">50</button>
+          <button class="view-chip">100</button>
+        </div>
+      </section>
+
+      <section id="noticeBar" class="notice-bar hidden"><span id="noticeText"></span><button id="noticeClose">×</button></section>
+      <section id="products" class="product-grid"></section>
+    </section>
+  </main>
+
+  <div id="productPreviewModal" class="modal hidden"></div>
+  <div id="serviceModal" class="modal hidden"></div>
+
+  <script src="/store-config.js"></script>
+  <script src="/shop.js"></script>
 </body>
 </html>

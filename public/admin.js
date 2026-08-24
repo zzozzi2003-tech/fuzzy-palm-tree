@@ -276,3 +276,16 @@ $("#ordersList").addEventListener("click",async e=>{
     await loadOrders(currentOrderFilter);
   }
 });
+
+async function loadNotificationHistory(){
+  const rows=await api("/api/admin/notifications");
+  $("#notificationHistory").innerHTML=rows.map(n=>`<article class="notification-row"><div><strong>${esc(n.message)}</strong><p>${n.targetDiscordId?`Target: ${esc(n.targetDiscordId)}`:"Everyone"} · ${esc(n.createdAt||"")}</p></div></article>`).join("")||'<div class="empty-admin">No notifications sent yet.</div>';
+}
+$("#showNotifications").addEventListener("click",async()=>{
+  $("#notificationsSection").classList.remove("hidden");$("#productList").classList.add("hidden");$("#ordersSection").classList.add("hidden");$("#receiptLogsSection").classList.add("hidden");await loadNotificationHistory();
+});
+$("#closeNotifications").addEventListener("click",()=>{$("#notificationsSection").classList.add("hidden");$("#productList").classList.remove("hidden")});
+$("#notificationForm").addEventListener("submit",async e=>{
+  e.preventDefault();$("#notificationResult").textContent="";
+  try{await api("/api/admin/notifications",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:$("#notificationMessage").value,targetDiscordId:$("#notificationTarget").value.trim()})});$("#notificationMessage").value="";$("#notificationTarget").value="";$("#notificationResult").textContent="Notification sent.";await loadNotificationHistory()}catch(err){$("#notificationResult").textContent=err.message}
+});

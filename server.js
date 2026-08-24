@@ -87,6 +87,12 @@ function requireAdmin(req,res,next){if(!isAdmin(req))return res.status(401).json
 function requireCsrf(req,res,next){const token=String(req.get("X-CSRF-Token")||"");if(!isAdmin(req)||!req.session.csrfToken||token!==req.session.csrfToken)return res.status(403).json({message:"Invalid security token"});next()}
 function cleanSlug(v){return String(v||"").trim().toLowerCase().replace(/[^a-z0-9-_]+/g,"-").replace(/^-+|-+$/g,"").slice(0,80)}
 function sorted(rows){return [...rows].sort((a,b)=>(Number(a.sortOrder||0)-Number(b.sortOrder||0))||(Number(b.id)-Number(a.id)))}
+function isPremiumSubscriptionProduct(p){return String(p?.productType||'')==='premium_subscription'||String(p?.slug||'')==='fivevault-premium'}
+function categoryForProduct(p){const tag=String(p?.tag||'').toLowerCase();if(String(p?.productType||'')==='programming_service')return 'services';if(tag.includes('mlo'))return 'mlo';if(isPremiumSubscriptionProduct(p))return 'subscription';return 'scripts'}
+function isPremiumEligibleScript(p){return categoryForProduct(p)==='scripts'&&String(p?.productType||'')!=='programming_service'&&!isPremiumSubscriptionProduct(p)}
+function hasPremiumAccess(discordId){if(!discordId)return false;const ps=products();const rows=read(RECEIPT_LOGS,[]);return rows.some(o=>String(o?.discord?.id||'')===String(discordId)&&String(o?.status||'')==='delivered'&&(o.items||[]).some(it=>{const p=ps.find(pp=>Number(pp.id)===Number(it.productId));return p&&isPremiumSubscriptionProduct(p)}))}
+function effectiveBasePrice(req,p){const premiumActive=hasPremiumAccess(req.session?.discordUser?.id);if(premiumActive&&isPremiumEligibleScript(p))return 0;return Number(p?.price||0)}
+function publicProduct(req,p){const premiumActive=hasPremiumAccess(req.session?.discordUser?.id);const effectivePrice=premiumActive&&isPremiumEligibleScript(p)?0:Number(p.price||0);return {...p,effectivePrice,premiumIncluded:premiumActive&&isPremiumEligibleScript(p),category:categoryForProduct(p)} }
 
 app.use("/assets",express.static(path.join(PUBLIC,"assets"),{maxAge:"1d"}));
 app.use("/uploads",express.static(UPLOADS,{maxAge:"1d",fallthrough:false}));
@@ -165,7 +171,7 @@ app.get("/auth/discord/callback",async(req,res)=>{
 
 app.get("/api/auth/discord",(req,res)=>{
   const u=req.session?.discordUser;
-  res.json({connected:Boolean(u),user:u||null});
+  res.json({connected:Boolean(u),user:u||null,premiumActive:Boolean(u&&hasPremiumAccess(u.id))});
 });
 
 
@@ -188,7 +194,7 @@ app.get("/api/my-orders",(req,res)=>{
   res.json(mine);
 });
 
-app.get("/api/products",(_req,res)=>res.json(sorted(products()).filter(p=>p.active!==false)));
+app.get("/api/products",(req,res)=>res.json(sorted(products()).filter(p=>p.active!==false).map(p=>publicProduct(req,p))));
 app.get("/api/admin/session",(req,res)=>res.json({authenticated:isAdmin(req),csrfToken:isAdmin(req)?ensureCsrf(req):null}));
 app.post("/api/admin/login",authLimiter,(req,res)=>{
   const expected=String(process.env.ADMIN_PASSWORD||""),supplied=String(req.body?.password||"");
@@ -316,7 +322,7 @@ app.post("/api/checkout/bank-transfer",receiptUpload.single("receipt"),(req,res)
       const p=ps.find(x=>Number(x.id)===Number(item.productId)&&x.active!==false);
       const qty=Math.max(1,Math.min(Number(item.qty||1),20));
       if(!p)return res.status(400).json({message:"A product is unavailable."});
-      let unitPrice=Number(p.price||0),label=p.name;
+      let unitPrice=effectiveBasePrice(req,p),label=p.name;
       const option=String(item.option||"");
       if(p.productType==="programming_service"){
         const sp=p.servicePricing||{};
@@ -358,6 +364,36 @@ app.post("/api/checkout/bank-transfer",receiptUpload.single("receipt"),(req,res)
   }
 });
 
+app.post("/api/checkout/free-order",(req,res)=>{
+  try{
+    if(!req.session?.discordUser)return res.status(401).json({message:"Connect your Discord account first."});
+    const email=String(req.body.email||"").trim().toLowerCase();
+    const phoneRaw=String(req.body.phone||"").replace(/\s+/g,"");
+    const phone=phoneRaw.startsWith("0")?phoneRaw:`0${phoneRaw}`;
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))return res.status(400).json({message:"Enter a valid email address."});
+    if(!/^05\d{8}$/.test(phone))return res.status(400).json({message:"Enter a valid Saudi mobile number."});
+    let requestItems=[];
+    try{requestItems=JSON.parse(String(req.body.items||"[]"))}catch{return res.status(400).json({message:"Invalid cart data."})}
+    if(!Array.isArray(requestItems)||!requestItems.length)return res.status(400).json({message:"Cart is empty."});
+    const ps=products(),normalized=[];let total=0;
+    for(const item of requestItems){
+      const p=ps.find(x=>Number(x.id)===Number(item.productId)&&x.active!==false);
+      const qty=Math.max(1,Math.min(Number(item.qty||1),20));
+      if(!p)return res.status(400).json({message:"A product is unavailable."});
+      let unitPrice=effectiveBasePrice(req,p),label=p.name;
+      if(String(p.productType||'')==='programming_service')return res.status(400).json({message:"Services are not free under premium subscription."});
+      total+=unitPrice*qty;normalized.push({productId:p.id,name:label,qty,unitPrice});
+    }
+    if(total!==0)return res.status(400).json({message:"This order is not free. Use bank transfer checkout instead."});
+    const logs=read(RECEIPT_LOGS,[]);
+    const id=nextId(logs),orderNumber=`ES-${String(id).padStart(5,"0")}`;
+    const entry={id,orderNumber,email,phone,discord:req.session.discordUser,amount:0,currency:"SAR",items:normalized,receiptUrl:"",receiptFilename:"",status:"delivered",createdAt:new Date().toISOString(),deliveredAt:new Date().toISOString()};
+    logs.push(entry);write(RECEIPT_LOGS,logs);
+    console.log(`[PREMIUM FREE ORDER] ${orderNumber} | @${entry.discord.username} (${entry.discord.id})`);
+    return res.json({ok:true,orderNumber,amount:0,status:"delivered"});
+  }catch(e){console.error('[PREMIUM FREE ORDER]',e);return res.status(500).json({message:'Could not create the free order.'})}
+});
+
 app.post("/api/checkout/cart-session",async(req,res)=>{
   try{
     if(!MPK||!APIP||!BASE)return res.status(503).json({message:"Payment gateway is not activated yet."});
@@ -368,7 +404,7 @@ app.post("/api/checkout/cart-session",async(req,res)=>{
       const qty=Math.max(1,Math.min(Number(item.qty||1),20));
       if(!p)return res.status(400).json({message:"A product is unavailable."});
 
-      let unitPrice=Number(p.price||0);
+      let unitPrice=effectiveBasePrice(req,p);
       let orderName=p.name;
       let sku=p.slug;
 
@@ -416,4 +452,4 @@ app.use((err,req,res,next)=>{
 });
 
 app.use((_req,res)=>res.status(404).send("Not found"));
-app.listen(PORT,()=>{console.log(`Eleven Store v5.7 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});
+app.listen(PORT,()=>{console.log(`Eleven Store v5.8 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});

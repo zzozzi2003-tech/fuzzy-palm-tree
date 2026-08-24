@@ -2,15 +2,26 @@
   {
     "id": 1,
     "slug": "starter",
-    "name": "Mt Files Encrypted",
+    "name": "Starter Package",
     "tag": "POPULAR",
-    "description": "MT Files – Encrypted\r\nSecure and protected MT files, ready to use with all essential resources included. Perfect for users who want a clean, organized, and protected package.",
-    "price": 50,
-    "image": "/uploads/1787522546525-4ee79b12238d69c3.png",
+    "description": "A clean starter product ready for your own description and delivery flow.",
+    "price": 49,
+    "image": "",
     "active": true,
     "sortOrder": 10,
-    "productType": "standard",
-    "servicePricing": {}
+    "previewImages": []
+  },
+  {
+    "id": 2,
+    "slug": "premium",
+    "name": "Premium Package",
+    "tag": "PREMIUM",
+    "description": "A higher-tier option for customers who want the complete experience.",
+    "price": 99,
+    "image": "",
+    "active": true,
+    "sortOrder": 20,
+    "previewImages": []
   },
   {
     "id": 3,
@@ -18,12 +29,11 @@
     "name": "Custom Order",
     "tag": "CUSTOM",
     "description": "For custom work, special requests, and personalized orders through Eleven Store.",
-    "price": 50,
+    "price": 149,
     "image": "",
     "active": true,
-    "sortOrder": 0,
-    "productType": "standard",
-    "servicePricing": {}
+    "sortOrder": 30,
+    "previewImages": []
   },
   {
     "id": 4,
@@ -37,37 +47,25 @@
     "sortOrder": 5,
     "productType": "programming_service",
     "servicePricing": {
-      "hourlyRate": 18,
-      "weekly": 30,
-      "halfMonthly": 50,
-      "monthly": 90,
-      "yearly": 150
-    }
+      "hourlyRate": 50,
+      "weekly": 500,
+      "halfMonthly": 900,
+      "monthly": 1500,
+      "yearly": 15000
+    },
+    "previewImages": []
   },
   {
     "id": 5,
-    "slug": "mt",
-    "name": "Mt Files open",
-    "tag": "ELEVEN",
-    "description": "MT Files – Open\r\nFull MT files with open and editable source code. Ideal for developers who want complete access to modify, customize, and develop the files freely.",
-    "price": 80,
-    "image": "/uploads/1787522637240-22a1c48f351e675c.png",
-    "active": true,
-    "sortOrder": 0,
-    "productType": "standard",
-    "servicePricing": {}
-  },
-  {
-    "id": 6,
-    "slug": "g",
-    "name": "Gang Tablet System",
-    "tag": "POPULAR",
-    "description": "Gang Tablet System\r\nA complete and modern gang management system built into an interactive tablet. Manage members, ranks, territories, properties, raids, treasury, rewards, gang assets, announcements, and more — all from one clean and organized interface.\r\n\r\nDesigned to give gangs everything they need in one place with a smooth UI, role-based permissions, and an immersive management experience.",
-    "price": 99,
+    "slug": "fivevault-premium",
+    "name": "FiveVault Premium",
+    "tag": "PROGRAMS",
+    "description": "Premium subscription. Every new script release becomes free for you during your subscription.",
+    "price": 599,
     "image": "",
     "active": true,
-    "sortOrder": 0,
-    "productType": "standard",
-    "servicePricing": {}
+    "sortOrder": 1,
+    "productType": "premium_subscription",
+    "previewImages": []
   }
 ]

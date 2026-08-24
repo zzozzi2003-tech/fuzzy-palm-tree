@@ -36,7 +36,7 @@
         <h1>Store Dashboard</h1>
         <p>Manage products, images, prices, visibility and ordering.</p>
       </div>
-      <div class="dash-actions"><button id="showOrders" class="ghost-btn">Orders</button><button id="showReceiptLogs" class="ghost-btn">Payment Logs</button><button id="newProduct" class="primary-btn">+ Add Product</button></div>
+      <div class="dash-actions"><button id="showNotifications" class="ghost-btn">Notify Members</button><button id="showOrders" class="ghost-btn">Orders</button><button id="showReceiptLogs" class="ghost-btn">Payment Logs</button><button id="newProduct" class="primary-btn">+ Add Product</button></div>
     </div>
 
     <div class="stats">
@@ -45,7 +45,14 @@
       <article><span>Store currency</span><strong>SAR</strong></article>
     </div>
 
-    <div id="productList" class="product-list"></div><section id="ordersSection" class="orders-section hidden">
+    <div id="productList" class="product-list"></div><section id="notificationsSection" class="notifications-section hidden">
+<div class="logs-head"><div><span class="eyebrow">MEMBERS</span><h2>Send Notification</h2></div><button id="closeNotifications" class="ghost-btn">Close</button></div>
+<form id="notificationForm" class="notification-form">
+<label>Message<textarea id="notificationMessage" rows="4" placeholder="Write the notification members will see..." required></textarea></label>
+<label>Target Discord ID <span>(optional)</span><input id="notificationTarget" placeholder="Leave empty to notify everyone"></label>
+<button class="primary-btn">Send Notification</button><small id="notificationResult"></small>
+</form><div id="notificationHistory" class="notification-history"></div></section>
+<section id="ordersSection" class="orders-section hidden">
           <div class="logs-head"><div><span class="eyebrow">ORDERS</span><h2>Order Management</h2></div><button id="closeOrders" class="ghost-btn">Close</button></div>
           <div class="order-tabs"><button class="active" data-order-filter="processing">Processing</button><button data-order-filter="delivered">Old Orders</button></div>
           <div id="ordersList" class="receipt-logs"></div>
