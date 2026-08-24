@@ -50,7 +50,7 @@ app.use(session({
   secret:process.env.SESSION_SECRET||"CHANGE_ME",
   resave:false,
   saveUninitialized:false,
-  cookie:{httpOnly:true,sameSite:"strict",secure:process.env.NODE_ENV==="production",maxAge:1000*60*60*8}
+  cookie:{httpOnly:true,sameSite:"lax",secure:process.env.NODE_ENV==="production",maxAge:1000*60*60*8}
 }));
 
 const authLimiter=rateLimit({windowMs:15*60*1000,limit:20,standardHeaders:true,legacyHeaders:false});
@@ -121,7 +121,12 @@ app.get("/auth/discord",(req,res)=>{
 app.get("/auth/discord/callback",async(req,res)=>{
   try{
     if(!req.query.code||!req.query.state||req.query.state!==req.session.discordOAuthState){
-      return res.status(400).send("Invalid Discord login state.");
+      console.error("[DISCORD OAUTH] state mismatch", {
+        hasCode:Boolean(req.query.code),
+        hasState:Boolean(req.query.state),
+        hasSessionState:Boolean(req.session?.discordOAuthState)
+      });
+      return res.status(400).send("Invalid Discord login state. Please return to checkout and connect Discord again.");
     }
     const body=new URLSearchParams({
       client_id:DISCORD_CLIENT_ID,
@@ -371,4 +376,4 @@ app.use((err,req,res,next)=>{
 });
 
 app.use((_req,res)=>res.status(404).send("Not found"));
-app.listen(PORT,()=>{console.log(`Eleven Store v5.6 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});
+app.listen(PORT,()=>{console.log(`Eleven Store v5.6.1 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});
