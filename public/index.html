@@ -1,66 +1,598 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Eleven Store</title>
-<meta name="theme-color" content="#07101f">
-<link rel="stylesheet" href="/store.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Eleven Store</title>
+  <style>
+    :root{
+      --bg:#071322;
+      --nav:#080c13;
+      --panel:#0c1a2b;
+      --panel-2:#0b1525;
+      --panel-3:#101d30;
+      --border:#26364b;
+      --text:#f5f7fb;
+      --muted:#8893a7;
+      --blue:#327ff5;
+      --blue-2:#4294ff;
+      --danger:#ff5a6b;
+      --success:#2fd083;
+      --warning:#ffb648;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Tahoma,Arial,sans-serif}
+    body{min-height:100vh}
+    button,input,select,textarea{font:inherit}
+
+    .navbar{
+      height:73px;
+      background:var(--nav);
+      border-bottom:1px solid #1a2534;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:0 27px;
+      position:sticky;
+      top:0;
+      z-index:30;
+    }
+    .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:14px;letter-spacing:-.2px}
+    .brand-mark{
+      width:40px;height:40px;border-radius:10px;
+      background:linear-gradient(135deg,#06111c 5%,#0f5d96 100%);
+      display:grid;place-items:center;box-shadow:0 8px 26px rgba(0,0,0,.25)
+    }
+    .brand-mark svg{width:22px;height:22px}
+
+    .nav-links{display:flex;align-items:center;gap:42px;margin-left:80px}
+    .nav-links a{color:#8d95a4;text-decoration:none;font-size:13px;font-weight:500}
+    .nav-links a.active{color:#fff}
+
+    .nav-actions{display:flex;align-items:center;gap:10px}
+    .icon-btn{
+      width:43px;height:43px;border-radius:11px;border:0;
+      background:linear-gradient(135deg,#2b74e8,#318bff);
+      display:grid;place-items:center;color:#fff;cursor:pointer;position:relative
+    }
+    .icon-btn svg{width:18px;height:18px;stroke:currentColor}
+    .badge{
+      position:absolute;right:-5px;top:-7px;min-width:19px;height:19px;padding:0 5px;
+      border-radius:999px;background:#1678ff;color:white;font-size:11px;font-weight:700;
+      border:2px solid var(--nav);display:flex;align-items:center;justify-content:center
+    }
+    .badge.hidden{display:none}
+
+    main{padding:54px 28px 80px}
+    .head-row{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:31px}
+    .eyebrow{color:#3987ff;font-size:11px;font-weight:800;letter-spacing:1.4px;margin-bottom:7px}
+    h1{font-size:28px;line-height:1;margin:0;font-weight:850;letter-spacing:-.8px}
+    .sort-wrap select{
+      min-width:120px;background:#0f1725;border:1px solid #2b3950;color:#fff;
+      height:41px;padding:0 38px 0 14px;border-radius:10px;font-size:13px;outline:none;
+      direction:rtl
+    }
+
+    .products{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:24px;
+      align-items:start;
+    }
+    .card{
+      background:var(--panel-2);
+      border:1px solid var(--border);
+      border-radius:16px;
+      overflow:hidden;
+      min-height:480px;
+      box-shadow:0 2px 0 rgba(255,255,255,.01) inset;
+    }
+    .product-media{height:343px;background:#0d2235;display:flex;align-items:center;justify-content:center}
+    .product-logo{
+      width:186px;height:139px;background:linear-gradient(120deg,#040b13 5%,#0a2c46 55%,#15659c 100%);
+      display:grid;place-items:center
+    }
+    .product-logo svg{width:54px;height:54px}
+    .card-body{padding:13px 15px 15px}
+    .title{font-size:14px;font-weight:800;margin:0 0 16px;color:#fff}
+    .meta-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    .category{font-size:10px;color:#7e8ba0;text-transform:uppercase;letter-spacing:.2px}
+    .price{font-size:14px;font-weight:800;color:#2f89ff}
+    .buy{
+      width:100%;height:43px;border:0;border-radius:10px;
+      background:linear-gradient(90deg,#3177ec,#4295ff);color:#fff;
+      font-weight:800;font-size:16px;cursor:pointer;transition:.18s ease
+    }
+    .buy:hover{filter:brightness(1.07);transform:translateY(-1px)}
+
+    .admin-message-toast{
+      position:fixed;top:87px;left:50%;transform:translate(-50%,-18px);
+      width:min(520px,calc(100% - 28px));
+      background:linear-gradient(180deg,#12223a,#0d192b);
+      border:1px solid #2c4d79;border-radius:15px;
+      box-shadow:0 22px 70px rgba(0,0,0,.42);
+      padding:14px 15px;z-index:100;
+      display:flex;gap:12px;align-items:flex-start;
+      opacity:0;pointer-events:none;transition:.22s ease;
+    }
+    .admin-message-toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+    .toast-icon{width:38px;height:38px;border-radius:11px;background:#2179f4;display:grid;place-items:center;flex:0 0 auto}
+    .toast-icon svg{width:18px;height:18px;stroke:#fff}
+    .toast-content{min-width:0;flex:1}
+    .toast-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px}
+    .toast-title{font-size:13px;font-weight:850}
+    .toast-time{font-size:10px;color:#8090a7;white-space:nowrap}
+    .toast-text{font-size:12px;line-height:1.55;color:#c7d2e3;word-break:break-word}
+    .toast-close{border:0;background:transparent;color:#7f8ca0;cursor:pointer;padding:4px;display:grid;place-items:center}
+    .toast-close svg{width:16px;height:16px;stroke:currentColor}
+
+    .overlay{position:fixed;inset:0;background:rgba(2,7,13,.66);backdrop-filter:blur(4px);z-index:60;display:none}
+    .overlay.show{display:block}
+    .modal{
+      position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.98);
+      width:min(920px,calc(100% - 28px));max-height:86vh;overflow:auto;
+      background:#0a1423;border:1px solid #26384f;border-radius:18px;
+      box-shadow:0 30px 100px rgba(0,0,0,.58);z-index:70;
+      display:none;opacity:0;transition:.16s ease;
+    }
+    .modal.show{display:block;opacity:1;transform:translate(-50%,-50%) scale(1)}
+    .modal-header{padding:18px 20px;border-bottom:1px solid #1e2b3d;display:flex;align-items:center;justify-content:space-between;gap:14px;position:sticky;top:0;background:#0a1423;z-index:2}
+    .modal-title{font-size:16px;font-weight:850}
+    .modal-subtitle{font-size:11px;color:#7f8da1;margin-top:4px}
+    .close-btn{width:36px;height:36px;border-radius:9px;border:1px solid #2a3a50;background:#101c2e;color:#d8e0ec;cursor:pointer;display:grid;place-items:center}
+    .close-btn svg{width:16px;height:16px;stroke:currentColor}
+    .modal-body{padding:20px}
+
+    .tabs{display:flex;gap:8px;padding:7px;background:#08111e;border:1px solid #1f2c3e;border-radius:12px;margin-bottom:18px}
+    .tab-btn{flex:1;height:39px;border:0;border-radius:9px;background:transparent;color:#8795aa;cursor:pointer;font-weight:750;font-size:12px}
+    .tab-btn.active{background:#14233a;color:#fff;box-shadow:inset 0 0 0 1px #284360}
+    .tab-panel{display:none}.tab-panel.active{display:block}
+
+    .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+    .field{display:flex;flex-direction:column;gap:7px}
+    .field.full{grid-column:1/-1}
+    .field label{font-size:11px;color:#93a0b3;font-weight:650}
+    .field input,.field select,.field textarea{
+      width:100%;border:1px solid #2a3a50;background:#0c1828;color:#fff;border-radius:10px;outline:none;padding:11px 12px;font-size:12px
+    }
+    .field textarea{min-height:115px;resize:vertical;line-height:1.5}
+    .field input:focus,.field select:focus,.field textarea:focus{border-color:#2f80ef;box-shadow:0 0 0 3px rgba(47,128,239,.1)}
+    .primary-btn,.secondary-btn,.danger-btn{
+      border:0;border-radius:10px;height:42px;padding:0 16px;cursor:pointer;font-weight:800;font-size:12px
+    }
+    .primary-btn{background:linear-gradient(90deg,#2f75ea,#4094ff);color:#fff}
+    .secondary-btn{background:#122139;color:#dbe5f3;border:1px solid #28405e}
+    .danger-btn{background:rgba(255,90,107,.12);color:#ff7180;border:1px solid rgba(255,90,107,.27)}
+    .actions-row{display:flex;justify-content:flex-end;gap:10px;margin-top:15px}
+
+    .notice{padding:11px 12px;border-radius:10px;font-size:11px;line-height:1.55;margin-bottom:14px;border:1px solid #23405e;background:#0c1b2e;color:#a9bdd6}
+    .notice strong{color:#fff}
+
+    .list{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+    .list-item{border:1px solid #223249;background:#0c1828;border-radius:12px;padding:12px 13px;display:flex;align-items:center;justify-content:space-between;gap:14px}
+    .item-main{min-width:0}
+    .item-title{font-size:12px;font-weight:800;margin-bottom:4px}
+    .item-meta{font-size:10px;color:#7f8da1;line-height:1.45}
+    .pill{font-size:10px;padding:5px 8px;border-radius:999px;background:#132942;color:#6fb0ff;border:1px solid #25496f;white-space:nowrap}
+    .list-actions{display:flex;gap:7px;align-items:center}
+    .mini-btn{height:31px;border-radius:8px;padding:0 10px;border:1px solid #2a3c54;background:#111f33;color:#dbe5f3;font-size:10px;font-weight:750;cursor:pointer}
+    .mini-btn.danger{color:#ff7180;border-color:rgba(255,90,107,.28);background:rgba(255,90,107,.08)}
+
+    .drawer{
+      position:fixed;right:0;top:0;height:100vh;width:min(420px,100%);z-index:75;
+      background:#091422;border-left:1px solid #24354b;box-shadow:-24px 0 70px rgba(0,0,0,.45);
+      transform:translateX(102%);transition:.22s ease;display:flex;flex-direction:column
+    }
+    .drawer.show{transform:translateX(0)}
+    .drawer-header{height:73px;padding:0 18px;border-bottom:1px solid #1e2b3d;display:flex;align-items:center;justify-content:space-between}
+    .drawer-title{font-size:15px;font-weight:850}
+    .drawer-body{padding:16px;overflow:auto;flex:1}
+    .cart-item{display:flex;gap:12px;padding:12px;border:1px solid #223249;border-radius:12px;background:#0c1828;margin-bottom:10px}
+    .cart-thumb{width:58px;height:50px;border-radius:9px;background:linear-gradient(135deg,#06111c,#105c96);display:grid;place-items:center;flex:0 0 auto}
+    .cart-thumb svg{width:25px;height:25px}
+    .cart-info{flex:1;min-width:0}.cart-name{font-size:12px;font-weight:800}.cart-price{font-size:11px;color:#4795ff;margin-top:5px}
+    .remove-cart{background:transparent;border:0;color:#7f8da1;cursor:pointer}
+    .remove-cart svg{width:15px;height:15px;stroke:currentColor}
+    .coupon-box{margin-top:18px;padding:14px;border:1px solid #223249;border-radius:12px;background:#0c1828}
+    .coupon-line{display:flex;gap:8px}.coupon-line input{flex:1;min-width:0;border:1px solid #2a3a50;background:#081321;color:#fff;border-radius:9px;padding:10px 11px;outline:none}
+    .coupon-status{min-height:18px;margin-top:8px;font-size:10px;color:#7f8da1}
+    .coupon-status.success{color:#45d891}.coupon-status.error{color:#ff7180}
+    .totals{margin-top:18px;border-top:1px solid #203047;padding-top:14px;display:flex;flex-direction:column;gap:9px}
+    .total-row{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:#9eacc0}
+    .total-row.final{font-size:15px;color:#fff;font-weight:850;margin-top:3px}
+    .drawer-footer{padding:16px;border-top:1px solid #1e2b3d}
+    .checkout{width:100%;height:45px;border:0;border-radius:10px;background:linear-gradient(90deg,#2f75ea,#4094ff);color:#fff;font-weight:850;cursor:pointer}
+    .empty{padding:30px 8px;text-align:center;color:#77869a;font-size:12px}
+
+    .inbox-item{padding:13px;border:1px solid #223249;background:#0c1828;border-radius:12px;margin-bottom:10px}
+    .inbox-item.unread{border-color:#2b5b8b;background:#0d1b2e}
+    .inbox-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:6px}
+    .inbox-title{font-size:12px;font-weight:850}.inbox-time{font-size:10px;color:#7f8da1}
+    .inbox-text{font-size:11px;color:#b9c5d5;line-height:1.55}
+
+    @media (max-width:1100px){
+      .products{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .nav-links{gap:24px;margin-left:20px}
+    }
+    @media (max-width:720px){
+      .navbar{padding:0 14px}.nav-links{display:none}.nav-actions{gap:7px}
+      main{padding:34px 14px 60px}.head-row{align-items:flex-start;gap:20px}
+      .products{grid-template-columns:1fr}.product-media{height:285px}
+      .form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}
+      .modal-body{padding:14px}.modal-header{padding:15px}
+    }
+  </style>
 </head>
 <body>
-<header class="site-header">
-  <div class="header-shell">
-    <a class="brand" href="/"><img src="/assets/eleven-logo.png" alt="Eleven Store"><span>ELEVEN STORE</span></a>
-    <nav class="nav-main">
-      <a href="/" class="active" data-filter="all">الرئيسية</a>
-      <a href="#products" data-filter="files">الملفات</a>
-      <a href="#products" data-filter="scripts">السكربتات</a>
-      <a href="#products" data-filter="all">جميع المنتجات</a>
+  <header class="navbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M7 4.3 12 7v4.4L8.3 9.3v2.8L12 14.2v4.5L7 16V4.3Z" fill="#fff"/>
+          <path d="M12 7 17 4.3v4.8L12 12V7Zm0 7.2 5-2.9V16l-5 2.7v-4.5Z" fill="#fff"/>
+        </svg>
+      </div>
+      <span>ELEVEN STORE</span>
+    </div>
+
+    <nav class="nav-links">
+      <a href="#" class="active">Home</a>
+      <a href="#">Files</a>
+      <a href="#">Scripts</a>
+      <a href="#">All Products</a>
     </nav>
-    <div class="header-actions">
-      <button class="icon-button" id="accountButton" aria-label="Account">👤</button>
-      <button class="icon-button cart-button" id="cartButton" aria-label="Cart">🛍<b id="cartBadge">0</b></button>
-      <button class="icon-button" id="searchButton" aria-label="Search">⌕</button>
+
+    <div class="nav-actions">
+      <button class="icon-btn" id="adminBtn" aria-label="Admin panel" title="Admin Panel">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 19 6v5c0 4.8-2.9 8-7 10-4.1-2-7-5.2-7-10V6l7-3Z" stroke-width="1.8" stroke-linejoin="round"/><path d="M9.5 12.3 11.2 14l3.6-4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn" id="messagesBtn" aria-label="Messages" title="Messages">
+        <span class="badge hidden" id="messageBadge">0</span>
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 5h14v10H9l-4 4V5Z" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 9h8M8 12h5" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <button class="icon-btn" id="cartBtn" aria-label="Cart" title="Cart">
+        <span class="badge" id="cartBadge">0</span>
+        <svg viewBox="0 0 24 24" fill="none"><path d="M3 5h2l2 10h10l2-7H7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="19" r="1.5" fill="currentColor" stroke="none"/><circle cx="17" cy="19" r="1.5" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <button class="icon-btn" aria-label="Search" title="Search">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6" stroke-width="1.8"/><path d="m16 16 4 4" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
     </div>
+  </header>
+
+  <div class="admin-message-toast" id="messageToast" role="status" aria-live="polite">
+    <div class="toast-icon">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M5 5h14v10H9l-4 4V5Z" stroke-width="1.8" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="toast-content">
+      <div class="toast-top">
+        <div class="toast-title" id="toastTitle">Admin Message</div>
+        <div class="toast-time" id="toastTime">Now</div>
+      </div>
+      <div class="toast-text" id="toastText"></div>
+    </div>
+    <button class="toast-close" id="toastClose" aria-label="Close message">
+      <svg viewBox="0 0 24 24" fill="none"><path d="m7 7 10 10M17 7 7 17" stroke-width="1.8" stroke-linecap="round"/></svg>
+    </button>
   </div>
-</header>
 
-<div id="searchBar" class="search-bar hidden">
-  <div class="search-inner"><input id="searchInput" placeholder="ابحث عن منتج..."><button id="closeSearch">×</button></div>
-</div>
+  <main>
+    <div class="head-row">
+      <div>
+        <div class="eyebrow">ELEVEN STORE</div>
+        <h1>Latest Products</h1>
+      </div>
+      <div class="sort-wrap">
+        <select aria-label="Sort products">
+          <option>الأحدث</option>
+          <option>الأقدم</option>
+          <option>السعر: الأقل</option>
+          <option>السعر: الأعلى</option>
+        </select>
+      </div>
+    </div>
 
-<main class="store-main">
-  <section class="section-head">
-    <div><span class="small-label">ELEVEN STORE</span><h1>أحدث المنتجات</h1></div>
-    <div class="head-tools"><select id="sortSelect"><option value="newest">الأحدث</option><option value="price-low">السعر: الأقل</option><option value="price-high">السعر: الأعلى</option></select></div>
-  </section>
-  <section id="products" class="product-grid"></section>
-</main>
+    <section class="products" id="productsGrid">
+      <article class="card" data-id="fivevault" data-name="FiveVault Premium" data-price="599">
+        <div class="product-media"><div class="product-logo">
+          <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path fill="#fff" d="M21 12l11 6 11-6v10l-11 6-6-3.2v6.6l6 3.2 11-6v10l-11 6-11-6V12Z"/></svg>
+        </div></div>
+        <div class="card-body"><h3 class="title">FiveVault Premium</h3><div class="meta-row"><span class="category">PROGRAMS</span><span class="price">599 SAR</span></div><button class="buy">Add to cart</button></div>
+      </article>
 
-<aside class="floating-tools">
-  <div class="lang-wrap">
-    <button id="langBtn" class="float-pill"><span class="lang-dot">AR</span><span>العربية</span><i>⌃</i></button>
-    <div id="langMenu" class="lang-menu hidden"><button data-lang="ar">العربية</button><button data-lang="en">English</button></div>
-  </div>
-  <a class="float-pill support-pill" href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener">🎧 <span id="supportText">الدعم</span></a>
-</aside>
+      <article class="card" data-id="service" data-name="خدمة برمجية" data-price="0">
+        <div class="product-media"><div class="product-logo">
+          <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path fill="#fff" d="M21 12l11 6 11-6v10l-11 6-6-3.2v6.6l6 3.2 11-6v10l-11 6-11-6V12Z"/></svg>
+        </div></div>
+        <div class="card-body"><h3 class="title">خدمة برمجية</h3><div class="meta-row"><span class="category">SERVICE</span><span class="price">0 SAR</span></div><button class="buy">Add to cart</button></div>
+      </article>
 
-<div id="cartModal" class="cart-modal hidden">
-  <div class="cart-backdrop" data-cart-close></div>
-  <section class="cart-dialog">
-    <header class="cart-header"><button class="cart-close" data-cart-close>×</button><div><h2 id="cartTitle">سلة التسوق</h2><small id="cartCountText">0 عنصر</small></div><span>🛍</span></header>
-    <div class="cart-layout">
-      <aside class="cart-summary-panel">
-        <label id="couponLabel">كود الخصم</label>
-        <div class="coupon-row"><input placeholder="كود الخصم"><button id="couponApply">تطبيق</button></div>
-        <h3 id="summaryTitle">ملخص الطلب</h3>
-        <div class="summary-box"><div><span id="subtotalLabel">المجموع الفرعي</span><b id="cartSubtotal">0 SAR</b></div><div class="total"><span id="totalLabel">المجموع الكلي</span><b id="cartTotal">0 SAR</b></div></div>
-        <button id="checkoutButton" class="checkout-button">متابعة عملية الدفع</button>
-      </aside>
-      <div id="cartItems" class="cart-items"></div>
+      <article class="card" data-id="starter" data-name="Starter Package" data-price="49">
+        <div class="product-media"><div class="product-logo">
+          <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path fill="#fff" d="M21 12l11 6 11-6v10l-11 6-6-3.2v6.6l6 3.2 11-6v10l-11 6-11-6V12Z"/></svg>
+        </div></div>
+        <div class="card-body"><h3 class="title">Starter Package</h3><div class="meta-row"><span class="category">POPULAR</span><span class="price">49 SAR</span></div><button class="buy">Add to cart</button></div>
+      </article>
+
+      <article class="card" data-id="premium" data-name="Premium Package" data-price="99">
+        <div class="product-media"><div class="product-logo">
+          <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path fill="#fff" d="M21 12l11 6 11-6v10l-11 6-6-3.2v6.6l6 3.2 11-6v10l-11 6-11-6V12Z"/></svg>
+        </div></div>
+        <div class="card-body"><h3 class="title">Premium Package</h3><div class="meta-row"><span class="category">PREMIUM</span><span class="price">99 SAR</span></div><button class="buy">Add to cart</button></div>
+      </article>
+
+      <article class="card" data-id="custom" data-name="Custom Product" data-price="0">
+        <div class="product-media"><div class="product-logo">
+          <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path fill="#fff" d="M21 12l11 6 11-6v10l-11 6-6-3.2v6.6l6 3.2 11-6v10l-11 6-11-6V12Z"/></svg>
+        </div></div>
+        <div class="card-body"><h3 class="title">Custom Product</h3><div class="meta-row"><span class="category">CUSTOM</span><span class="price">0 SAR</span></div><button class="buy">Add to cart</button></div>
+      </article>
+    </section>
+  </main>
+
+  <div class="overlay" id="overlay"></div>
+
+  <section class="modal" id="adminModal" aria-hidden="true">
+    <div class="modal-header">
+      <div><div class="modal-title">Admin Panel</div><div class="modal-subtitle">Messages and discount coupons</div></div>
+      <button class="close-btn" data-close="adminModal" aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><path d="m7 7 10 10M17 7 7 17" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="messagesTab">Send Message</button>
+        <button class="tab-btn" data-tab="couponsTab">Coupons</button>
+      </div>
+
+      <div class="tab-panel active" id="messagesTab">
+        <div class="notice"><strong>Admin DM:</strong> when a message is sent to the current user, it appears at the top like a direct-message notification and is saved in the inbox.</div>
+        <div class="form-grid">
+          <div class="field">
+            <label for="recipient">Recipient</label>
+            <select id="recipient">
+              <option value="demo-user">Demo User</option>
+              <option value="user-1001">User 1001</option>
+              <option value="user-1002">User 1002</option>
+              <option value="all">All Users</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="messageTitle">Title</label>
+            <input id="messageTitle" maxlength="60" placeholder="Order update" />
+          </div>
+          <div class="field full">
+            <label for="messageBody">Message</label>
+            <textarea id="messageBody" maxlength="600" placeholder="Write the admin message here..."></textarea>
+          </div>
+        </div>
+        <div class="actions-row"><button class="primary-btn" id="sendMessageBtn">Send Message</button></div>
+        <div class="list" id="sentMessagesList"></div>
+      </div>
+
+      <div class="tab-panel" id="couponsTab">
+        <div class="notice"><strong>Coupons:</strong> create percentage discount codes, set usage limits and optional expiry dates. Customers can apply them in the cart.</div>
+        <div class="form-grid">
+          <div class="field"><label for="couponCode">Coupon Code</label><input id="couponCode" maxlength="24" placeholder="ELEVEN20" /></div>
+          <div class="field"><label for="couponDiscount">Discount Percentage</label><input id="couponDiscount" type="number" min="1" max="100" placeholder="20" /></div>
+          <div class="field"><label for="couponMaxUses">Maximum Uses</label><input id="couponMaxUses" type="number" min="1" placeholder="100" /></div>
+          <div class="field"><label for="couponExpiry">Expiry Date</label><input id="couponExpiry" type="date" /></div>
+        </div>
+        <div class="actions-row"><button class="primary-btn" id="createCouponBtn">Create Coupon</button></div>
+        <div class="list" id="couponList"></div>
+      </div>
     </div>
   </section>
-</div>
 
-<script src="/store-config.js"></script><script src="/shop.js"></script>
-</body></html>
+  <section class="modal" id="messagesModal" aria-hidden="true">
+    <div class="modal-header">
+      <div><div class="modal-title">Messages</div><div class="modal-subtitle">Messages sent by the store administration</div></div>
+      <button class="close-btn" data-close="messagesModal" aria-label="Close"><svg viewBox="0 0 24 24" fill="none"><path d="m7 7 10 10M17 7 7 17" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+    </div>
+    <div class="modal-body" id="inboxList"></div>
+  </section>
+
+  <aside class="drawer" id="cartDrawer" aria-hidden="true">
+    <div class="drawer-header"><div class="drawer-title">Shopping Cart</div><button class="close-btn" id="closeCart" aria-label="Close cart"><svg viewBox="0 0 24 24" fill="none"><path d="m7 7 10 10M17 7 7 17" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>
+    <div class="drawer-body">
+      <div id="cartItems"></div>
+      <div class="coupon-box">
+        <div class="field" style="gap:8px"><label for="cartCoupon">Discount Coupon</label><div class="coupon-line"><input id="cartCoupon" placeholder="Enter coupon code" /><button class="secondary-btn" id="applyCouponBtn">Apply</button></div><div class="coupon-status" id="couponStatus"></div></div>
+      </div>
+      <div class="totals">
+        <div class="total-row"><span>Subtotal</span><span id="subtotal">0 SAR</span></div>
+        <div class="total-row"><span>Discount</span><span id="discountAmount">0 SAR</span></div>
+        <div class="total-row final"><span>Total</span><span id="total">0 SAR</span></div>
+      </div>
+    </div>
+    <div class="drawer-footer"><button class="checkout">Checkout</button></div>
+  </aside>
+
+  <script>
+    const STORAGE_KEYS = {
+      coupons: 'elevenStoreCouponsV2',
+      inbox: 'elevenStoreInboxV2',
+      sent: 'elevenStoreSentMessagesV2',
+      cart: 'elevenStoreCartV2'
+    };
+    const CURRENT_USER = 'demo-user';
+
+    const state = {
+      coupons: JSON.parse(localStorage.getItem(STORAGE_KEYS.coupons) || '[]'),
+      inbox: JSON.parse(localStorage.getItem(STORAGE_KEYS.inbox) || '[]'),
+      sent: JSON.parse(localStorage.getItem(STORAGE_KEYS.sent) || '[]'),
+      cart: JSON.parse(localStorage.getItem(STORAGE_KEYS.cart) || '[]'),
+      appliedCoupon: null
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const overlay = $('overlay');
+
+    function saveState(){
+      localStorage.setItem(STORAGE_KEYS.coupons, JSON.stringify(state.coupons));
+      localStorage.setItem(STORAGE_KEYS.inbox, JSON.stringify(state.inbox));
+      localStorage.setItem(STORAGE_KEYS.sent, JSON.stringify(state.sent));
+      localStorage.setItem(STORAGE_KEYS.cart, JSON.stringify(state.cart));
+    }
+
+    function escapeHtml(value=''){
+      return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));
+    }
+
+    function formatDate(iso){
+      const d = new Date(iso);
+      return Number.isNaN(d.getTime()) ? '' : d.toLocaleString([], {dateStyle:'medium', timeStyle:'short'});
+    }
+
+    function openModal(id){
+      overlay.classList.add('show');
+      const el = $(id); el.classList.add('show'); el.setAttribute('aria-hidden','false');
+    }
+    function closeModal(id){
+      const el = $(id); el.classList.remove('show'); el.setAttribute('aria-hidden','true');
+      if(!document.querySelector('.modal.show') && !$('cartDrawer').classList.contains('show')) overlay.classList.remove('show');
+    }
+
+    document.querySelectorAll('[data-close]').forEach(btn => btn.addEventListener('click',()=>closeModal(btn.dataset.close)));
+    overlay.addEventListener('click',()=>{
+      document.querySelectorAll('.modal.show').forEach(m=>closeModal(m.id));
+      closeCart();
+    });
+
+    $('adminBtn').addEventListener('click',()=>{renderSentMessages();renderCoupons();openModal('adminModal')});
+    $('messagesBtn').addEventListener('click',()=>{markMessagesRead();renderInbox();openModal('messagesModal')});
+
+    document.querySelectorAll('.tab-btn').forEach(btn=>btn.addEventListener('click',()=>{
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active'); $(btn.dataset.tab).classList.add('active');
+    }));
+
+    function showTopMessage(message){
+      $('toastTitle').textContent = message.title || 'Admin Message';
+      $('toastText').textContent = message.body;
+      $('toastTime').textContent = 'Now';
+      $('messageToast').classList.add('show');
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(()=>$('messageToast').classList.remove('show'), 6500);
+    }
+    $('toastClose').addEventListener('click',()=>$('messageToast').classList.remove('show'));
+
+    $('sendMessageBtn').addEventListener('click',()=>{
+      const recipient = $('recipient').value;
+      const title = $('messageTitle').value.trim() || 'Admin Message';
+      const body = $('messageBody').value.trim();
+      if(!body){ alert('Write a message first.'); return; }
+      const msg = {id:Date.now(),recipient,title,body,createdAt:new Date().toISOString(),read:false};
+      state.sent.unshift(msg);
+      if(recipient === CURRENT_USER || recipient === 'all'){
+        state.inbox.unshift({...msg});
+        showTopMessage(msg);
+      }
+      saveState();
+      $('messageBody').value=''; $('messageTitle').value='';
+      renderSentMessages(); updateMessageBadge();
+    });
+
+    function renderSentMessages(){
+      const list = $('sentMessagesList');
+      if(!state.sent.length){ list.innerHTML='<div class="empty">No messages have been sent yet.</div>'; return; }
+      list.innerHTML = state.sent.slice(0,8).map(m=>`<div class="list-item"><div class="item-main"><div class="item-title">${escapeHtml(m.title)}</div><div class="item-meta">To: ${escapeHtml(m.recipient)}<br>${escapeHtml(m.body)}<br>${formatDate(m.createdAt)}</div></div><span class="pill">Sent</span></div>`).join('');
+    }
+
+    function updateMessageBadge(){
+      const unread = state.inbox.filter(m=>!m.read).length;
+      $('messageBadge').textContent = unread;
+      $('messageBadge').classList.toggle('hidden', unread===0);
+    }
+    function markMessagesRead(){
+      state.inbox = state.inbox.map(m=>({...m,read:true})); saveState(); updateMessageBadge();
+    }
+    function renderInbox(){
+      const list = $('inboxList');
+      if(!state.inbox.length){ list.innerHTML='<div class="empty">No admin messages yet.</div>'; return; }
+      list.innerHTML = state.inbox.map(m=>`<div class="inbox-item ${m.read?'':'unread'}"><div class="inbox-head"><div class="inbox-title">${escapeHtml(m.title)}</div><div class="inbox-time">${formatDate(m.createdAt)}</div></div><div class="inbox-text">${escapeHtml(m.body)}</div></div>`).join('');
+    }
+
+    $('createCouponBtn').addEventListener('click',()=>{
+      const code = $('couponCode').value.trim().toUpperCase().replace(/\s+/g,'');
+      const discount = Number($('couponDiscount').value);
+      const maxUses = Number($('couponMaxUses').value || 999999);
+      const expiry = $('couponExpiry').value || null;
+      if(!code){ alert('Enter a coupon code.'); return; }
+      if(!Number.isFinite(discount) || discount < 1 || discount > 100){ alert('Discount must be between 1 and 100.'); return; }
+      if(!Number.isFinite(maxUses) || maxUses < 1){ alert('Maximum uses must be at least 1.'); return; }
+      if(state.coupons.some(c=>c.code===code)){ alert('This coupon code already exists.'); return; }
+      state.coupons.unshift({id:Date.now(),code,discount,maxUses,uses:0,expiry,active:true,createdAt:new Date().toISOString()});
+      saveState();
+      $('couponCode').value=''; $('couponDiscount').value=''; $('couponMaxUses').value=''; $('couponExpiry').value='';
+      renderCoupons();
+    });
+
+    function renderCoupons(){
+      const list = $('couponList');
+      if(!state.coupons.length){ list.innerHTML='<div class="empty">No coupons created yet.</div>'; return; }
+      list.innerHTML = state.coupons.map(c=>{
+        const expiryText = c.expiry ? `Expires: ${escapeHtml(c.expiry)}` : 'No expiry';
+        const status = c.active ? 'Active' : 'Disabled';
+        return `<div class="list-item"><div class="item-main"><div class="item-title">${escapeHtml(c.code)} — ${c.discount}% OFF</div><div class="item-meta">${expiryText} · Uses: ${c.uses}/${c.maxUses}</div></div><div class="list-actions"><span class="pill">${status}</span><button class="mini-btn" onclick="toggleCoupon(${c.id})">${c.active?'Disable':'Enable'}</button><button class="mini-btn danger" onclick="deleteCoupon(${c.id})">Delete</button></div></div>`;
+      }).join('');
+    }
+    window.toggleCoupon = (id)=>{ const c=state.coupons.find(x=>x.id===id); if(c){c.active=!c.active;saveState();renderCoupons();} };
+    window.deleteCoupon = (id)=>{ state.coupons=state.coupons.filter(x=>x.id!==id); if(state.appliedCoupon?.id===id) state.appliedCoupon=null; saveState();renderCoupons();renderCart(); };
+
+    document.querySelectorAll('.card .buy').forEach(btn=>btn.addEventListener('click',()=>{
+      const card = btn.closest('.card');
+      const id = card.dataset.id;
+      const existing = state.cart.find(i=>i.id===id);
+      if(existing) existing.qty += 1;
+      else state.cart.push({id,name:card.dataset.name,price:Number(card.dataset.price),qty:1});
+      saveState(); renderCart(); openCart();
+    }));
+
+    $('cartBtn').addEventListener('click',()=>{renderCart();openCart()});
+    $('closeCart').addEventListener('click',closeCart);
+    function openCart(){ overlay.classList.add('show'); $('cartDrawer').classList.add('show'); $('cartDrawer').setAttribute('aria-hidden','false'); }
+    function closeCart(){ $('cartDrawer').classList.remove('show'); $('cartDrawer').setAttribute('aria-hidden','true'); if(!document.querySelector('.modal.show')) overlay.classList.remove('show'); }
+
+    window.removeCartItem = (id)=>{ state.cart=state.cart.filter(i=>i.id!==id); saveState(); renderCart(); };
+
+    function couponIsValid(c){
+      if(!c || !c.active) return false;
+      if(c.uses >= c.maxUses) return false;
+      if(c.expiry){
+        const end = new Date(c.expiry+'T23:59:59');
+        if(end < new Date()) return false;
+      }
+      return true;
+    }
+
+    $('applyCouponBtn').addEventListener('click',()=>{
+      const code = $('cartCoupon').value.trim().toUpperCase().replace(/\s+/g,'');
+      const coupon = state.coupons.find(c=>c.code===code);
+      const status = $('couponStatus');
+      if(!coupon){ state.appliedCoupon=null; status.className='coupon-status error'; status.textContent='Coupon not found.'; renderCartTotals(); return; }
+      if(!couponIsValid(coupon)){ state.appliedCoupon=null; status.className='coupon-status error'; status.textContent='This coupon is expired, disabled or has reached its usage limit.'; renderCartTotals(); return; }
+      state.appliedCoupon=coupon; status.className='coupon-status success'; status.textContent=`Coupon applied: ${coupon.discount}% discount.`; renderCartTotals();
+    });
+
+    function renderCart(){
+      const container = $('cartItems');
+      const count = state.cart.reduce((s,i)=>s+i.qty,0);
+      $('cartBadge').textContent=count;
+      if(!state.cart.length){ container.innerHTML='<div class="empty">Your cart is empty.</div>'; }
+      else container.innerHTML = state.cart.map(i=>`<div class="cart-item"><div class="cart-thumb"><svg viewBox="0 0 64 64"><path fill="#fff" d="M21 12l11 6 11-6v10l-11 6-6-3.2v6.6l6 3.2 11-6v10l-11 6-11-6V12Z"/></svg></div><div class="cart-info"><div class="cart-name">${escapeHtml(i.name)} × ${i.qty}</div><div class="cart-price">${(i.price*i.qty).toFixed(2)} SAR</div></div><button class="remove-cart" onclick="removeCartItem('${i.id}')" aria-label="Remove"><svg viewBox="0 0 24 24" fill="none"><path d="M5 7h14M9 7V4h6v3m-8 0 1 13h8l1-13M10 10v7M14 10v7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>`).join('');
+      renderCartTotals();
+    }
+    function renderCartTotals(){
+      const subtotal = state.cart.reduce((s,i)=>s+i.price*i.qty,0);
+      let discount = 0;
+      if(state.appliedCoupon && couponIsValid(state.appliedCoupon)) discount = subtotal * (state.appliedCoupon.discount/100);
+      const total = Math.max(0, subtotal-discount);
+      $('subtotal').textContent = `${subtotal.toFixed(2)} SAR`;
+      $('discountAmount').textContent = `-${discount.toFixed(2)} SAR`;
+      $('total').textContent = `${total.toFixed(2)} SAR`;
+    }
+
+    renderCart(); updateMessageBadge(); renderCoupons(); renderSentMessages();
+  </script>
+</body>
+</html>
