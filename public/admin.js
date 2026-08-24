@@ -109,6 +109,21 @@ function openEditor(p=null){
     $("#previewWrap").classList.add("hidden");
     $("#preview").removeAttribute("src");
   }
+
+  $("#previewImages").value="";
+  const previews=Array.isArray(p?.previewImages)?p.previewImages:[];
+  const existing=$("#existingPreviews");
+  if(previews.length){
+    existing.classList.remove("hidden");
+    existing.innerHTML=`<span class="preview-label">Current Preview</span><div class="preview-thumb-grid">${previews.map((url,i)=>`
+      <div class="preview-thumb">
+        <img src="${esc(url)}" alt="Preview ${i+1}">
+        <label><input type="checkbox" class="remove-preview" value="${esc(url)}"> Remove</label>
+      </div>`).join("")}</div>`;
+  }else{
+    existing.classList.add("hidden");
+    existing.innerHTML="";
+  }
   $("#productModal").classList.remove("hidden");
 }
 
@@ -185,6 +200,9 @@ $("#productForm").addEventListener("submit",async e=>{
   }
   fd.append("active",$("#active").checked?"1":"0");
   if($("#image").files[0])fd.append("image",$("#image").files[0]);
+  Array.from($("#previewImages").files||[]).forEach(file=>fd.append("previewImages",file));
+  const removePreviews=Array.from(document.querySelectorAll(".remove-preview:checked")).map(x=>x.value);
+  fd.append("removePreviews",JSON.stringify(removePreviews));
 
   const id=$("#productId").value;
   $("#saveProduct").disabled=true;
@@ -215,3 +233,46 @@ function toggleServicePricing(){
 $("#productType").addEventListener("change",toggleServicePricing);
 
 async function loadReceiptLogs(){try{const logs=await api("/api/admin/receipt-logs");$("#receiptLogs").innerHTML=logs.map(log=>`<article class="receipt-log-card"><div><span class="log-status">${esc(log.status||"receipt_uploaded")}</span><h3>Order #${esc(log.orderNumber||String(log.id))}</h3><p>${esc(log.customer||"No contact")} · ${esc(log.createdAt||"")}</p></div><div class="log-total">SAR ${Number(log.amount||0).toLocaleString("en-US",{maximumFractionDigits:2})}</div><a class="action-btn" href="${esc(log.receiptUrl||"#")}" target="_blank" rel="noopener">View Receipt</a></article>`).join("")||'<div class="empty-admin">No receipt logs yet.</div>';$("#receiptLogsSection").classList.remove("hidden");$("#productList").classList.add("hidden")}catch(e){alert(e.message)}}$("#showReceiptLogs").addEventListener("click",loadReceiptLogs);$("#closeReceiptLogs").addEventListener("click",()=>{$("#receiptLogsSection").classList.add("hidden");$("#productList").classList.remove("hidden")});
+
+let currentOrderFilter="processing";
+async function loadOrders(filter=currentOrderFilter){
+  currentOrderFilter=filter;
+  const orders=await api(`/api/admin/orders?status=${encodeURIComponent(filter)}`);
+  $("#ordersList").innerHTML=orders.map(o=>`
+    <article class="order-card">
+      <div class="order-main">
+        <span class="log-status">${esc(o.status||"processing")}</span>
+        <h3>${esc(o.orderNumber||String(o.id))}</h3>
+        <p>${esc(o.email||"")} · ${esc(o.phone||"")}</p>
+        <p>Discord: <strong>@${esc(o.discord?.username||"not-linked")}</strong> ${o.discord?.id?`(${esc(o.discord.id)})`:""}</p>
+        <p>${esc(o.createdAt||"")}</p>
+      </div>
+      <div class="log-total">SAR ${Number(o.amount||0).toLocaleString("en-US",{maximumFractionDigits:2})}</div>
+      <div class="actions">
+        ${o.receiptUrl?`<a class="action-btn" href="${esc(o.receiptUrl)}" target="_blank" rel="noopener">Receipt</a>`:""}
+        ${o.status!=="delivered"?`<button class="action-btn" data-order-action="delivered" data-order-id="${o.id}">Mark Delivered</button>`:""}
+      </div>
+    </article>`).join("")||'<div class="empty-admin">No orders in this section.</div>';
+  $("#ordersSection").classList.remove("hidden");
+  $("#productList").classList.add("hidden");
+  $("#receiptLogsSection").classList.add("hidden");
+}
+$("#showOrders").addEventListener("click",()=>loadOrders("processing"));
+$("#closeOrders").addEventListener("click",()=>{$("#ordersSection").classList.add("hidden");$("#productList").classList.remove("hidden")});
+document.querySelectorAll("[data-order-filter]").forEach(btn=>btn.addEventListener("click",async()=>{
+  document.querySelectorAll("[data-order-filter]").forEach(x=>x.classList.remove("active"));
+  btn.classList.add("active");
+  await loadOrders(btn.dataset.orderFilter);
+}));
+$("#ordersList").addEventListener("click",async e=>{
+  const b=e.target.closest("[data-order-action]");
+  if(!b)return;
+  if(b.dataset.orderAction==="delivered"){
+    if(!confirm("Mark this order as delivered?"))return;
+    await api(`/api/admin/orders/${b.dataset.orderId}/status`,{
+      method:"PATCH",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({status:"delivered"})
+    });
+    await loadOrders(currentOrderFilter);
+  }
+});

@@ -13,10 +13,16 @@ async function load(){
    const isService=p.productType==="programming_service";
    const priceText=isService?`From ${money(Number(p.servicePricing?.hourlyRate||0))}/hr`:money(p.price);
    return `<article class="product-card">
-   <div class="product-image"><img class="${p.image?'':'logo-fallback'}" src="${p.image?esc(p.image):'/assets/eleven-logo.png'}" alt="${esc(p.name)}"></div>
-   <div class="product-body"><span class="product-tag">${esc(p.tag||'ELEVEN')}</span><h3>${esc(p.name)}</h3><p>${esc(p.description||'')}</p><div class="product-price"><strong>${priceText}</strong></div><button class="add-btn ${isService?'service-btn':''}" data-id="${p.id}">${isService?'Choose Plan':'Add to cart'}</button></div></article>`;
+   <button class="product-image product-open" data-open-id="${p.id}"><img class="${p.image?'':'logo-fallback'}" src="${p.image?esc(p.image):'/assets/eleven-logo.png'}" alt="${esc(p.name)}"><span class="preview-badge">Preview</span></button>
+   <div class="product-body"><span class="product-tag">${esc(p.tag||'ELEVEN')}</span><button class="product-title product-open" data-open-id="${p.id}">${esc(p.name)}</button><p>${esc(p.description||'')}</p><div class="product-price"><strong>${priceText}</strong></div><button class="add-btn ${isService?'service-btn':''}" data-id="${p.id}">${isService?'Choose Plan':'Add to cart'}</button></div></article>`;
  }).join("")||'<div class="empty">No products yet.</div>';
  grid.onclick=e=>{
+   const open=e.target.closest(".product-open");
+   if(open){
+     const p=products.find(x=>Number(x.id)===Number(open.dataset.openId));
+     if(p)openProductPreview(p);
+     return;
+   }
    const b=e.target.closest(".add-btn");if(!b)return;
    const p=products.find(x=>Number(x.id)===Number(b.dataset.id));if(!p)return;
    if(p.productType==="programming_service")openServiceModal(p);else add(p);
@@ -104,4 +110,63 @@ function openServiceModal(p){
     save(c);
     location.href="/cart";
   };
+}
+
+function openProductPreview(p){
+  let modal=document.querySelector("#productPreviewModal");
+  if(!modal){
+    modal=document.createElement("div");
+    modal.id="productPreviewModal";
+    modal.className="product-preview-modal";
+    document.body.appendChild(modal);
+  }
+
+  const gallery=[...(p.image?[p.image]:[]),...(Array.isArray(p.previewImages)?p.previewImages:[])];
+  if(!gallery.length)gallery.push("/assets/eleven-logo.png");
+  let index=0;
+
+  modal.innerHTML=`
+    <div class="preview-backdrop" data-close-preview></div>
+    <div class="preview-dialog">
+      <button class="preview-close" data-close-preview>×</button>
+      <div class="preview-gallery">
+        <div class="preview-main-wrap">
+          <button class="preview-nav prev" aria-label="Previous">‹</button>
+          <img id="previewMainImage" src="${esc(gallery[0])}" alt="${esc(p.name)}">
+          <button class="preview-nav next" aria-label="Next">›</button>
+        </div>
+        <div id="previewThumbs" class="preview-thumbs">
+          ${gallery.map((url,i)=>`<button data-preview-index="${i}" class="${i===0?'active':''}"><img src="${esc(url)}" alt="Preview ${i+1}"></button>`).join("")}
+        </div>
+      </div>
+      <div class="preview-info">
+        <span class="eyebrow">${esc(p.tag||"ELEVEN")}</span>
+        <h2>${esc(p.name)}</h2>
+        <p>${esc(p.description||"")}</p>
+        <div class="preview-info-bottom">
+          <strong>${p.productType==="programming_service"?`From ${money(Number(p.servicePricing?.hourlyRate||0))}/hr`:money(p.price)}</strong>
+          <button id="previewAddToCart" class="add-btn">${p.productType==="programming_service"?"Choose Plan":"Add to cart"}</button>
+        </div>
+      </div>
+    </div>`;
+
+  const main=modal.querySelector("#previewMainImage");
+  const thumbs=modal.querySelectorAll("[data-preview-index]");
+  const show=i=>{
+    index=(i+gallery.length)%gallery.length;
+    main.src=gallery[index];
+    thumbs.forEach((t,ti)=>t.classList.toggle("active",ti===index));
+  };
+
+  modal.querySelector(".prev").onclick=()=>show(index-1);
+  modal.querySelector(".next").onclick=()=>show(index+1);
+  thumbs.forEach(t=>t.onclick=()=>show(Number(t.dataset.previewIndex)));
+  modal.querySelectorAll("[data-close-preview]").forEach(x=>x.onclick=()=>modal.classList.remove("show"));
+  modal.querySelector("#previewAddToCart").onclick=()=>{
+    if(p.productType==="programming_service"){
+      modal.classList.remove("show");
+      openServiceModal(p);
+    }else add(p);
+  };
+  modal.classList.add("show");
 }

@@ -99,6 +99,68 @@ app.get("/payment-success",(_req,res)=>res.sendFile(path.join(PUBLIC,"payment-su
 app.get("/admin",(_req,res)=>res.sendFile(path.join(PUBLIC,"admin.html")));
 app.get("/admin.html",(_req,res)=>res.redirect("/admin"));
 
+
+const DISCORD_CLIENT_ID=process.env.DISCORD_CLIENT_ID||"";
+const DISCORD_CLIENT_SECRET=process.env.DISCORD_CLIENT_SECRET||"";
+const DISCORD_REDIRECT_URI=process.env.DISCORD_REDIRECT_URI||"";
+
+app.get("/auth/discord",(req,res)=>{
+  if(!DISCORD_CLIENT_ID||!DISCORD_REDIRECT_URI)return res.status(503).send("Discord login is not configured.");
+  const state=crypto.randomBytes(24).toString("hex");
+  req.session.discordOAuthState=state;
+  const q=new URLSearchParams({
+    client_id:DISCORD_CLIENT_ID,
+    redirect_uri:DISCORD_REDIRECT_URI,
+    response_type:"code",
+    scope:"identify",
+    state
+  });
+  res.redirect(`https://discord.com/oauth2/authorize?${q.toString()}`);
+});
+
+app.get("/auth/discord/callback",async(req,res)=>{
+  try{
+    if(!req.query.code||!req.query.state||req.query.state!==req.session.discordOAuthState){
+      return res.status(400).send("Invalid Discord login state.");
+    }
+    const body=new URLSearchParams({
+      client_id:DISCORD_CLIENT_ID,
+      client_secret:DISCORD_CLIENT_SECRET,
+      grant_type:"authorization_code",
+      code:String(req.query.code),
+      redirect_uri:DISCORD_REDIRECT_URI
+    });
+    const tokenRes=await fetch("https://discord.com/api/oauth2/token",{
+      method:"POST",
+      headers:{"Content-Type":"application/x-www-form-urlencoded"},
+      body
+    });
+    const token=await tokenRes.json();
+    if(!tokenRes.ok||!token.access_token)throw new Error("Discord token exchange failed.");
+    const userRes=await fetch("https://discord.com/api/users/@me",{
+      headers:{Authorization:`Bearer ${token.access_token}`}
+    });
+    const user=await userRes.json();
+    if(!userRes.ok||!user.id)throw new Error("Could not load Discord profile.");
+    req.session.discordUser={
+      id:String(user.id),
+      username:String(user.username||""),
+      globalName:String(user.global_name||""),
+      avatar:String(user.avatar||"")
+    };
+    delete req.session.discordOAuthState;
+    res.redirect("/checkout");
+  }catch(e){
+    console.error("[DISCORD OAUTH]",e);
+    res.status(500).send("Discord login failed.");
+  }
+});
+
+app.get("/api/auth/discord",(req,res)=>{
+  const u=req.session?.discordUser;
+  res.json({connected:Boolean(u),user:u||null});
+});
+
 app.get("/api/products",(_req,res)=>res.json(sorted(products()).filter(p=>p.active!==false)));
 app.get("/api/admin/session",(req,res)=>res.json({authenticated:isAdmin(req),csrfToken:isAdmin(req)?ensureCsrf(req):null}));
 app.post("/api/admin/login",authLimiter,(req,res)=>{
@@ -111,7 +173,7 @@ app.post("/api/admin/login",authLimiter,(req,res)=>{
 app.post("/api/admin/logout",requireAdmin,requireCsrf,(req,res)=>req.session.destroy(()=>res.json({ok:true})));
 app.get("/api/admin/products",requireAdmin,(_req,res)=>res.json(sorted(products())));
 
-app.post("/api/admin/products",requireAdmin,requireCsrf,upload.single("image"),(req,res)=>{
+app.post("/api/admin/products",requireAdmin,requireCsrf,upload.fields([{name:"image",maxCount:1},{name:"previewImages",maxCount:12}]),(req,res)=>{
   const rows=products(),name=String(req.body.name||"").trim(),slug=cleanSlug(req.body.slug||name),price=Number(req.body.price||0);
   if(!name||!slug)return res.status(400).json({message:"Name and slug are required."});
   if(!Number.isFinite(price)||price<0)return res.status(400).json({message:"Invalid price."});
@@ -121,10 +183,10 @@ app.post("/api/admin/products",requireAdmin,requireCsrf,upload.single("image"),(
   if(productType==="programming_service"){
     try{servicePricing=JSON.parse(String(req.body.servicePricing||"{}"))}catch{}
   }
-  const row={id:nextId(rows),slug,name,tag:String(req.body.tag||"ELEVEN").trim().slice(0,30),description:String(req.body.description||"").trim(),price,image:req.file?`/uploads/${req.file.filename}`:"",active:String(req.body.active||"1")==="1",sortOrder:Number(req.body.sortOrder||0),productType,servicePricing};
+  const row={id:nextId(rows),slug,name,tag:String(req.body.tag||"ELEVEN").trim().slice(0,30),description:String(req.body.description||"").trim(),price,image:req.files?.image?.[0]?`/uploads/${req.files.image[0].filename}`:"",previewImages:(req.files?.previewImages||[]).map(f=>`/uploads/${f.filename}`),active:String(req.body.active||"1")==="1",sortOrder:Number(req.body.sortOrder||0),productType,servicePricing};
   rows.push(row);saveProducts(rows);res.json(row)
 });
-app.put("/api/admin/products/:id",requireAdmin,requireCsrf,upload.single("image"),(req,res)=>{
+app.put("/api/admin/products/:id",requireAdmin,requireCsrf,upload.fields([{name:"image",maxCount:1},{name:"previewImages",maxCount:12}]),(req,res)=>{
   const rows=products(),id=Number(req.params.id),i=rows.findIndex(p=>Number(p.id)===id);if(i<0)return res.status(404).json({message:"Product not found."});
   const old=rows[i],name=String(req.body.name||old.name).trim(),slug=cleanSlug(req.body.slug||old.slug),price=Number(req.body.price??old.price);
   if(rows.some(p=>Number(p.id)!==id&&p.slug===slug))return res.status(409).json({message:"Slug already exists."});
@@ -133,7 +195,16 @@ app.put("/api/admin/products/:id",requireAdmin,requireCsrf,upload.single("image"
   if(productType==="programming_service" && req.body.servicePricing!==undefined){
     try{servicePricing=JSON.parse(String(req.body.servicePricing||"{}"))}catch{}
   }
-  rows[i]={...old,name,slug,tag:String(req.body.tag??old.tag).trim().slice(0,30),description:String(req.body.description??old.description).trim(),price,image:req.file?`/uploads/${req.file.filename}`:old.image,active:String(req.body.active??(old.active?"1":"0"))==="1",sortOrder:Number(req.body.sortOrder??old.sortOrder??0),productType,servicePricing};
+  let previewImages=Array.isArray(old.previewImages)?old.previewImages:[];
+  let removePreviews=[];
+  try{removePreviews=JSON.parse(String(req.body.removePreviews||"[]"))}catch{}
+  if(Array.isArray(removePreviews)&&removePreviews.length){
+    previewImages=previewImages.filter(url=>!removePreviews.includes(url));
+  }
+  const newPreviewUrls=(req.files?.previewImages||[]).map(f=>`/uploads/${f.filename}`);
+  previewImages=[...previewImages,...newPreviewUrls].slice(0,12);
+
+  rows[i]={...old,name,slug,tag:String(req.body.tag??old.tag).trim().slice(0,30),description:String(req.body.description??old.description).trim(),price,image:req.files?.image?.[0]?`/uploads/${req.files.image[0].filename}`:old.image,previewImages,active:String(req.body.active??(old.active?"1":"0"))==="1",sortOrder:Number(req.body.sortOrder??old.sortOrder??0),productType,servicePricing};
   saveProducts(rows);res.json(rows[i])
 });
 
@@ -154,6 +225,27 @@ app.delete("/api/admin/products/:id",requireAdmin,requireCsrf,(req,res)=>{
 
 app.get("/api/admin/receipt-logs",requireAdmin,(_req,res)=>{const rows=read(RECEIPT_LOGS,[]);res.json([...rows].sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||""))))});
 
+
+app.get("/api/admin/orders",requireAdmin,(req,res)=>{
+  const status=String(req.query.status||"processing");
+  const rows=read(RECEIPT_LOGS,[]);
+  res.json(rows.filter(x=>status==="all"||x.status===status).sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||""))));
+});
+
+app.patch("/api/admin/orders/:id/status",requireAdmin,requireCsrf,(req,res)=>{
+  const allowed=["processing","delivered"];
+  const status=String(req.body?.status||"");
+  if(!allowed.includes(status))return res.status(400).json({message:"Invalid order status."});
+  const rows=read(RECEIPT_LOGS,[]);
+  const id=Number(req.params.id),i=rows.findIndex(x=>Number(x.id)===id);
+  if(i<0)return res.status(404).json({message:"Order not found."});
+  rows[i].status=status;
+  rows[i].deliveredAt=status==="delivered"?new Date().toISOString():null;
+  write(RECEIPT_LOGS,rows);
+  console.log(`[ORDER STATUS] ${rows[i].orderNumber} => ${status}`);
+  res.json(rows[i]);
+});
+
 const MPK=process.env.GEIDEA_MERCHANT_PUBLIC_KEY||"",APIP=process.env.GEIDEA_API_PASSWORD||"",BASE=(process.env.BASE_URL||"").replace(/\/$/,""),GEIDEA="https://api.ksamerchant.geidea.net/payment-intent/api/v2/direct/session";
 function ts(){const d=new Date(),p=n=>String(n).padStart(2,"0");return `${d.getUTCFullYear()}/${p(d.getUTCMonth()+1)}/${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`}
 function sig(amount,currency,ref,timestamp){return crypto.createHmac("sha256",APIP).update(`${MPK}${Number(amount).toFixed(2)}${currency}${ref}${timestamp}`).digest("base64")}
@@ -162,97 +254,62 @@ app.post("/api/checkout/bank-transfer",receiptUpload.single("receipt"),(req,res)
   console.log(`[BANK TRANSFER] request received | file=${req.file?.originalname||"none"} | type=${req.file?.mimetype||"none"} | size=${req.file?.size||0}`);
   try{
     if(!req.file)return res.status(400).json({message:"Please attach your payment receipt."});
+    if(!req.session?.discordUser)return res.status(401).json({message:"Connect your Discord account first."});
+
+    const email=String(req.body.email||"").trim().toLowerCase();
+    const phoneRaw=String(req.body.phone||"").replace(/\s+/g,"");
+    const phone=phoneRaw.startsWith("0")?phoneRaw:`0${phoneRaw}`;
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))return res.status(400).json({message:"Enter a valid email address."});
+    if(!/^05\d{8}$/.test(phone))return res.status(400).json({message:"Enter a valid Saudi mobile number."});
 
     let requestItems=[];
-    try{
-      requestItems=JSON.parse(String(req.body.items||"[]"));
-    }catch(parseErr){
-      console.error("[BANK TRANSFER] Invalid items JSON:",parseErr);
-      return res.status(400).json({message:"Invalid cart data."});
-    }
+    try{requestItems=JSON.parse(String(req.body.items||"[]"))}catch{return res.status(400).json({message:"Invalid cart data."})}
+    if(!Array.isArray(requestItems)||!requestItems.length)return res.status(400).json({message:"Cart is empty."});
 
-    if(!Array.isArray(requestItems)||!requestItems.length){
-      return res.status(400).json({message:"Cart is empty."});
-    }
-
-    const ps=products();
-    const normalized=[];
-    let total=0;
-
+    const ps=products(),normalized=[];let total=0;
     for(const item of requestItems){
       const p=ps.find(x=>Number(x.id)===Number(item.productId)&&x.active!==false);
       const qty=Math.max(1,Math.min(Number(item.qty||1),20));
       if(!p)return res.status(400).json({message:"A product is unavailable."});
-
-      let unitPrice=Number(p.price||0);
-      let label=p.name;
+      let unitPrice=Number(p.price||0),label=p.name;
       const option=String(item.option||"");
-
       if(p.productType==="programming_service"){
         const sp=p.servicePricing||{};
         if(option.startsWith("hours:")){
           const hours=Math.max(1,Math.min(Number(option.split(":")[1]||1),4));
-          unitPrice=Number(sp.hourlyRate||0)*hours;
-          label=`${p.name} - ${hours} Hour${hours>1?"s":""}`;
-        }else if(option==="weekly"){
-          unitPrice=Number(sp.weekly||0); label=`${p.name} - Weekly`;
-        }else if(option==="half_monthly"){
-          unitPrice=Number(sp.halfMonthly||0); label=`${p.name} - Half Monthly`;
-        }else if(option==="monthly"){
-          unitPrice=Number(sp.monthly||0); label=`${p.name} - Monthly`;
-        }else if(option==="yearly"){
-          unitPrice=Number(sp.yearly||0); label=`${p.name} - Yearly`;
-        }else{
-          return res.status(400).json({message:"Choose a programming service option."});
-        }
+          unitPrice=Number(sp.hourlyRate||0)*hours;label=`${p.name} - ${hours} Hour${hours>1?"s":""}`;
+        }else if(option==="weekly"){unitPrice=Number(sp.weekly||0);label=`${p.name} - Weekly`}
+        else if(option==="half_monthly"){unitPrice=Number(sp.halfMonthly||0);label=`${p.name} - Half Monthly`}
+        else if(option==="monthly"){unitPrice=Number(sp.monthly||0);label=`${p.name} - Monthly`}
+        else if(option==="yearly"){unitPrice=Number(sp.yearly||0);label=`${p.name} - Yearly`}
+        else return res.status(400).json({message:"Choose a programming service option."});
       }
-
-      if(!Number.isFinite(unitPrice)||unitPrice<0){
-        return res.status(400).json({message:"Invalid product price."});
-      }
+      if(!Number.isFinite(unitPrice)||unitPrice<0)return res.status(400).json({message:"Invalid product price."});
       total+=unitPrice*qty;
       normalized.push({productId:p.id,name:label,qty,unitPrice});
     }
 
-    const extMap={
-      "image/png":".png",
-      "image/jpeg":".jpg",
-      "image/webp":".webp",
-      "application/pdf":".pdf"
-    };
+    const extMap={"image/png":".png","image/jpeg":".jpg","image/webp":".webp","application/pdf":".pdf"};
     const ext=extMap[req.file.mimetype]||".bin";
     const filename=`${Date.now()}-${crypto.randomBytes(10).toString("hex")}${ext}`;
-    const receiptPath=path.join(RECEIPT_DIR,filename);
-
     fs.mkdirSync(RECEIPT_DIR,{recursive:true});
-    fs.writeFileSync(receiptPath,req.file.buffer);
+    fs.writeFileSync(path.join(RECEIPT_DIR,filename),req.file.buffer);
 
     const logs=read(RECEIPT_LOGS,[]);
-    const id=nextId(logs);
-    const orderNumber=`ES-${String(id).padStart(5,"0")}`;
-    const customer=String(req.body.phone||req.body.email||"").trim();
-
+    const id=nextId(logs),orderNumber=`ES-${String(id).padStart(5,"0")}`;
     const entry={
-      id,
-      orderNumber,
-      customer,
-      amount:Number(total.toFixed(2)),
-      currency:"SAR",
-      items:normalized,
-      receiptUrl:`/uploads/receipts/${filename}`,
-      receiptFilename:filename,
-      status:"receipt_uploaded",
-      createdAt:new Date().toISOString()
+      id,orderNumber,email,phone,
+      discord:req.session.discordUser,
+      amount:Number(total.toFixed(2)),currency:"SAR",items:normalized,
+      receiptUrl:`/uploads/receipts/${filename}`,receiptFilename:filename,
+      status:"processing",createdAt:new Date().toISOString(),deliveredAt:null
     };
-
-    logs.push(entry);
-    write(RECEIPT_LOGS,logs);
-
-    console.log(`[PAYMENT RECEIPT] ${orderNumber} | ${customer||"No contact"} | SAR ${entry.amount} | ${entry.receiptUrl}`);
-    return res.json({ok:true,orderNumber,amount:entry.amount});
+    logs.push(entry);write(RECEIPT_LOGS,logs);
+    console.log(`[ORDER PROCESSING] ${orderNumber} | @${entry.discord.username} (${entry.discord.id}) | ${email} | ${phone} | SAR ${entry.amount}`);
+    return res.json({ok:true,orderNumber,amount:entry.amount,status:"processing"});
   }catch(e){
-    console.error("[BANK TRANSFER] save error:",e && e.stack ? e.stack : e);
-    return res.status(500).json({message:"Could not save the receipt.",detail:process.env.NODE_ENV==="production"?undefined:String(e.message||e)});
+    console.error("[BANK TRANSFER] save error:",e&&e.stack?e.stack:e);
+    return res.status(500).json({message:"Could not save the receipt."});
   }
 });
 
@@ -314,4 +371,4 @@ app.use((err,req,res,next)=>{
 });
 
 app.use((_req,res)=>res.status(404).send("Not found"));
-app.listen(PORT,()=>{console.log(`Eleven Store v5.4.2 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});
+app.listen(PORT,()=>{console.log(`Eleven Store v5.6 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});
