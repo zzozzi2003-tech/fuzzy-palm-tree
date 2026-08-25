@@ -1,0 +1,5 @@
+Eleven Store v6.5.4
+- Restored product images on storefront cards.
+- Large square artwork on top, product information below.
+- No image/text overlap.
+- Eleven logo is used as a clean fallback when a product has no uploaded image.
