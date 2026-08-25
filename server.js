@@ -444,9 +444,95 @@ app.use("/uploads",serveSupabaseUpload);
 ["store.css","commerce.css","checkout.css","login.css","admin.css","orders.css","product.css","support-chat.css","store-config.js","shop.js","cart.js","checkout.js","login.js","admin.js","orders.js","product.js","support-chat.js"].forEach(file=>{
   app.get("/"+file,(_req,res)=>res.sendFile(path.join(PUBLIC,file)));
 });
-app.get("/",(_req,res)=>res.sendFile(path.join(PUBLIC,"index.html")));
+function escapeMeta(value){
+  return String(value??"")
+    .replace(/&/g,"&amp;")
+    .replace(/"/g,"&quot;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;");
+}
+function requestOrigin(req){
+  const configured=String(process.env.PUBLIC_BASE_URL||process.env.SITE_URL||"").trim().replace(/\/$/,"");
+  if(configured)return configured;
+  const forwarded=String(req.headers["x-forwarded-proto"]||"").split(",")[0].trim();
+  const protocol=forwarded||req.protocol||"https";
+  return `${protocol}://${req.get("host")}`;
+}
+function absolutePreviewUrl(req,value,fallback="/assets/discord-preview.png"){
+  const raw=String(value||fallback||"").trim();
+  try{return new URL(raw,requestOrigin(req)+"/").href}catch{}
+  return `${requestOrigin(req)}${raw.startsWith("/")?raw:"/"+raw}`;
+}
+function stripSocialMeta(html){
+  return String(html)
+    .replace(/<meta\s+[^>]*(?:property|name)=["'](?:og:[^"']+|twitter:[^"']+)["'][^>]*>\s*/gi,"")
+    .replace(/<meta\s+[^>]*name=["']theme-color["'][^>]*>\s*/gi,"");
+}
+function injectSocialMeta(html,{title,description,image,url,type="website"}){
+  const clean=stripSocialMeta(html);
+  const safeTitle=escapeMeta(title||"Eleven Store");
+  const safeDesc=escapeMeta(description||"Premium FiveM scripts and files from Eleven Store.");
+  const safeImage=escapeMeta(image||"");
+  const safeUrl=escapeMeta(url||"");
+  const tags=`\n<meta property="og:type" content="${escapeMeta(type)}">\n<meta property="og:site_name" content="Eleven Store">\n<meta property="og:title" content="${safeTitle}">\n<meta property="og:description" content="${safeDesc}">\n<meta property="og:url" content="${safeUrl}">\n<meta property="og:image" content="${safeImage}">\n<meta property="og:image:secure_url" content="${safeImage}">\n<meta property="og:image:alt" content="${safeTitle}">\n<meta name="twitter:card" content="summary_large_image">\n<meta name="twitter:title" content="${safeTitle}">\n<meta name="twitter:description" content="${safeDesc}">\n<meta name="twitter:image" content="${safeImage}">\n<meta name="theme-color" content="#55bdf4">\n`;
+  return clean.includes("</head>")?clean.replace("</head>",tags+"</head>"):tags+clean;
+}
+function sendPageWithPreview(req,res,fileName,meta){
+  try{
+    const html=fs.readFileSync(path.join(PUBLIC,fileName),"utf8");
+    res.type("html").send(injectSocialMeta(html,meta));
+  }catch(e){
+    console.error("[LINK PREVIEW] page render failed:",e.message||e);
+    res.sendFile(path.join(PUBLIC,fileName));
+  }
+}
+
+app.get("/",(req,res)=>{
+  const origin=requestOrigin(req);
+  res.set("Cache-Control","public, max-age=0, must-revalidate");
+  sendPageWithPreview(req,res,"index.html",{
+    title:"Eleven Store",
+    description:"Premium FiveM scripts, systems and custom files.",
+    image:absolutePreviewUrl(req,"/assets/discord-preview.png"),
+    url:origin+"/"
+  });
+});
 app.get("/cart",(_req,res)=>res.sendFile(path.join(PUBLIC,"cart.html")));
-app.get("/product/:slug",(_req,res)=>res.sendFile(path.join(PUBLIC,"product.html")));
+function normalizedProductSlug(value){
+  let v=String(value||"").trim();
+  try{v=decodeURIComponent(v)}catch{}
+  return v.toLowerCase().replace(/^\/+|\/+$/g,"");
+}
+function prettySlug(value){
+  return normalizedProductSlug(value).split("-").filter(Boolean).map(x=>x.charAt(0).toUpperCase()+x.slice(1)).join(" ")||"Product";
+}
+app.get("/product/:slug",(req,res)=>{
+  const slug=String(req.params.slug||"").trim();
+  const key=normalizedProductSlug(slug);
+  const rows=products();
+  const product=rows.find(p=>normalizedProductSlug(p?.slug)===key)
+    || rows.find(p=>normalizedProductSlug(p?.name).replace(/\s+/g,"-")===key);
+
+  // Always return HTTP 200 with OG tags so Discord can build an embed.
+  const name=String(product?.name||prettySlug(slug)).trim();
+  const price=Number(product?.price||0);
+  const priceText=Number.isFinite(price)&&price>0?`${price} SAR`:"";
+  const bodyDescription=String(product?.description||"Premium FiveM script available on Eleven Store.")
+    .replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim().slice(0,220);
+  const description=priceText?`${priceText} • ${bodyDescription}`:bodyDescription;
+  const candidateImage=product?.image||(Array.isArray(product?.previewImages)&&product.previewImages[0])||"/assets/discord-preview.png";
+
+  res.status(200);
+  res.set("Cache-Control","public, max-age=0, must-revalidate");
+  res.set("X-Robots-Tag","all");
+  sendPageWithPreview(req,res,"product.html",{
+    title:name,
+    description,
+    image:absolutePreviewUrl(req,candidateImage),
+    url:`${requestOrigin(req)}/product/${encodeURIComponent(slug)}`,
+    type:"product"
+  });
+});
 app.get("/orders",(_req,res)=>res.sendFile(path.join(PUBLIC,"orders.html")));
 app.get("/login",(req,res)=>{const next=safeNextPath(req.query.next||"/");if(req.session?.discordUser)return res.redirect(next);res.sendFile(path.join(PUBLIC,"login.html"))});
 app.get("/checkout",(req,res)=>{if(!req.session?.discordUser)return res.redirect(`/login?next=${encodeURIComponent('/checkout')}`);res.sendFile(path.join(PUBLIC,"checkout.html"))});
