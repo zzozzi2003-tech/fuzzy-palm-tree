@@ -1,0 +1,15 @@
+Eleven Store v6.4.0
+
+- Removed the old home showcase/logo panel.
+- Removed the three old service cards from the home page.
+- Redesigned product cards with a cleaner premium layout.
+- Mouse motion now affects only the product card under the pointer.
+- Removed whole-grid/page mouse movement.
+- Added product star ratings to storefront cards.
+- Rebuilt product details page with a new Eleven UI.
+- Replaced LIKE/LOVE/WOW/ANGRY reactions with 1-5 star ratings.
+- Reviews require Discord login and automatically use the Discord account identity.
+- One review per Discord account per product; users can update their review.
+- Existing product/order/coupon/admin data remains compatible.
+
+For a live Render deployment, use the UI+server patch and keep your existing data folder.

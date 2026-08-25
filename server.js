@@ -119,7 +119,7 @@ function premiumPurchaseOrders(discordId){const ps=products();return read(RECEIP
 function hasPremiumAccess(discordId){if(!discordId)return false;const control=premiumControl(discordId);if(control&&control.active===false)return false;return premiumPurchaseOrders(discordId).length>0}
 function premiumMembers(){const ps=products(),logs=read(RECEIPT_LOGS,[]),map=new Map();for(const o of logs){const discordId=String(o?.discord?.id||'');if(!discordId||String(o?.status||'')!=='delivered')continue;const premium=(o.items||[]).some(it=>{const p=ps.find(pp=>Number(pp.id)===Number(it.productId));return (p&&isPremiumSubscriptionProduct(p))||/premium/i.test(String(it?.name||''))});if(!premium)continue;const prev=map.get(discordId);if(!prev||String(o.createdAt||'')>String(prev.purchasedAt||''))map.set(discordId,{discordId,username:String(o?.discord?.username||''),globalName:String(o?.discord?.globalName||''),orderNumber:String(o?.orderNumber||''),purchasedAt:o?.deliveredAt||o?.createdAt||''})}return [...map.values()].map(m=>{const control=premiumControl(m.discordId);return {...m,active:hasPremiumAccess(m.discordId),updatedAt:control?.updatedAt||m.purchasedAt}}).sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')))}
 function effectiveBasePrice(req,p){const premiumActive=hasPremiumAccess(req.session?.discordUser?.id);if(premiumActive&&isPremiumEligibleScript(p))return 0;return Number(p?.price||0)}
-function publicProduct(req,p){const premiumActive=hasPremiumAccess(req.session?.discordUser?.id);const effectivePrice=premiumActive&&isPremiumEligibleScript(p)?0:Number(p.price||0);return {...p,effectivePrice,premiumIncluded:premiumActive&&isPremiumEligibleScript(p),category:categoryForProduct(p)} }
+function publicProduct(req,p){const premiumActive=hasPremiumAccess(req.session?.discordUser?.id);const effectivePrice=premiumActive&&isPremiumEligibleScript(p)?0:Number(p.price||0);return {...p,effectivePrice,premiumIncluded:premiumActive&&isPremiumEligibleScript(p),category:categoryForProduct(p),rating:getRatingSummary(p.id)} }
 function safeNextPath(v){const next=String(v||'').trim();if(!next.startsWith('/')||next.startsWith('//')||next.startsWith('/admin'))return '/';return next.slice(0,240)}
 function requireCustomerApi(req,res,next){if(!req.session?.discordUser)return res.status(401).json({message:'Login required. Please sign in before checkout.'});next()}
 function couponRows(){return read(COUPONS,[])}
@@ -175,10 +175,26 @@ function hydrateOrderItems(order){
 
 function commentStore(){return read(PRODUCT_COMMENTS,{});}
 function commentKey(id){return String(Number(id)||0);}
-function getCommentsForProduct(id){const all=commentStore();const key=commentKey(id);const entry=all[key]||{comments:[],reactions:{like:0,love:0,wow:0,angry:0}};entry.comments=Array.isArray(entry.comments)?entry.comments:[];entry.reactions=entry.reactions&&typeof entry.reactions==='object'?entry.reactions:{like:0,love:0,wow:0,angry:0};for(const k of ['like','love','wow','angry']) entry.reactions[k]=Number(entry.reactions[k]||0);
-  return entry;
+function getReviewsForProduct(id){
+  const all=commentStore(),key=commentKey(id),raw=all[key]||{};
+  const legacy=Array.isArray(raw.comments)?raw.comments:[];
+  const reviews=Array.isArray(raw.reviews)?raw.reviews:legacy.map(c=>({
+    id:c.id,discordId:String(c.discordId||''),username:String(c.discordUsername||c.author||'Legacy user'),displayName:String(c.author||c.discordUsername||'Legacy user'),avatar:String(c.avatar||''),rating:Number(c.rating||0),message:String(c.message||''),createdAt:c.createdAt,updatedAt:c.updatedAt||c.createdAt,legacy:true
+  }));
+  return {reviews};
 }
-function saveCommentsForProduct(id,entry){const all=commentStore();all[commentKey(id)]=entry;write(PRODUCT_COMMENTS,all);return entry;}
+function saveReviewsForProduct(id,entry){
+  const all=commentStore(),key=commentKey(id),prev=all[key]&&typeof all[key]==='object'?all[key]:{};
+  all[key]={...prev,reviews:Array.isArray(entry.reviews)?entry.reviews:[]};
+  write(PRODUCT_COMMENTS,all);return all[key];
+}
+function getRatingSummary(id){
+  const reviews=getReviewsForProduct(id).reviews.filter(r=>Number(r.rating)>=1&&Number(r.rating)<=5);
+  const count=reviews.length,average=count?reviews.reduce((a,r)=>a+Number(r.rating),0)/count:0;
+  const distribution={1:0,2:0,3:0,4:0,5:0};for(const r of reviews)distribution[Math.round(Number(r.rating))]=(distribution[Math.round(Number(r.rating))]||0)+1;
+  return {average:Number(average.toFixed(1)),count,distribution};
+}
+function publicReview(r){return {id:r.id,displayName:r.displayName||r.username||'Discord User',username:r.username||'',discordId:r.discordId||'',avatar:r.avatar||'',rating:Number(r.rating||0),message:String(r.message||''),createdAt:r.createdAt,updatedAt:r.updatedAt||r.createdAt,legacy:Boolean(r.legacy)}}
 
 function supportChats(){return read(SUPPORT_CHATS,[])}
 function saveSupportChats(rows){write(SUPPORT_CHATS,rows)}
@@ -331,9 +347,25 @@ app.get("/api/notifications",(req,res)=>{
 
 app.get("/api/store-stats",(_req,res)=>res.json(computeStoreStats()));
 
-app.get("/api/products/:id/comments",(req,res)=>{res.json(getCommentsForProduct(req.params.id));});
-app.post("/api/products/:id/comments",(req,res)=>{try{const productId=Number(req.params.id);const author=String(req.body?.author||req.session?.discordUser?.username||"Anonymous").trim().slice(0,40)||"Anonymous";const message=String(req.body?.message||"").trim().slice(0,1000);if(!productId||!message)return res.status(400).json({message:"Comment text is required."});const entry=getCommentsForProduct(productId);const list=entry.comments;const id=nextId(list);list.unshift({id,author,message,createdAt:new Date().toISOString()});entry.comments=list.slice(0,100);saveCommentsForProduct(productId,entry);res.json({ok:true,comments:entry.comments,reactions:entry.reactions});}catch(e){console.error("Comment post error:",e);res.status(500).json({message:"Could not save comment."})}});
-app.post("/api/products/:id/react",(req,res)=>{try{const productId=Number(req.params.id);const reaction=String(req.body?.reaction||"");if(!productId||!["like","love","wow","angry"].includes(reaction))return res.status(400).json({message:"Invalid reaction."});const entry=getCommentsForProduct(productId);entry.reactions[reaction]=Number(entry.reactions[reaction]||0)+1;saveCommentsForProduct(productId,entry);res.json({ok:true,reactions:entry.reactions});}catch(e){console.error("Reaction error:",e);res.status(500).json({message:"Could not save reaction."})}});
+app.get("/api/products/:id/comments",(req,res)=>{
+  const entry=getReviewsForProduct(req.params.id),summary=getRatingSummary(req.params.id),u=req.session?.discordUser;
+  const mine=u?entry.reviews.find(r=>String(r.discordId||'')===String(u.id)):null;
+  res.json({reviews:entry.reviews.map(publicReview),rating:summary,myReview:mine?publicReview(mine):null,connected:Boolean(u),user:u||null});
+});
+app.post("/api/products/:id/review",requireCustomerApi,(req,res)=>{
+  try{
+    const productId=Number(req.params.id),rating=Math.round(Number(req.body?.rating||0)),message=String(req.body?.message||'').trim().slice(0,1000),u=req.session.discordUser;
+    if(!productId||rating<1||rating>5)return res.status(400).json({message:'Choose a rating from 1 to 5 stars.'});
+    const entry=getReviewsForProduct(productId),now=new Date().toISOString(),idx=entry.reviews.findIndex(r=>String(r.discordId||'')===String(u.id));
+    const review={id:idx>=0?entry.reviews[idx].id:nextId(entry.reviews),discordId:String(u.id),username:String(u.username||''),displayName:String(u.globalName||u.username||'Discord User'),avatar:String(u.avatar||''),rating,message,createdAt:idx>=0?(entry.reviews[idx].createdAt||now):now,updatedAt:now};
+    if(idx>=0)entry.reviews[idx]=review;else entry.reviews.unshift(review);
+    saveReviewsForProduct(productId,entry);
+    res.json({ok:true,reviews:entry.reviews.map(publicReview),rating:getRatingSummary(productId),myReview:publicReview(review)});
+  }catch(e){console.error('Review post error:',e);res.status(500).json({message:'Could not save review.'})}
+});
+// Legacy endpoints kept for old cached clients; new UI uses Discord-backed reviews.
+app.post("/api/products/:id/comments",requireCustomerApi,(req,res)=>res.status(410).json({message:'Use the new review form.'}));
+app.post("/api/products/:id/react",requireCustomerApi,(req,res)=>res.status(410).json({message:'Reactions were replaced with star ratings.'}));
 
 app.get("/api/my-orders",(req,res)=>{
   const discordId=req.session?.discordUser?.id;
@@ -714,4 +746,4 @@ app.use((err,req,res,next)=>{
 });
 
 app.use((_req,res)=>res.status(404).send("Not found"));
-app.listen(PORT,()=>{console.log(`Eleven Store v6.3.4 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});
+app.listen(PORT,()=>{console.log(`Eleven Store v6.4.0 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});
