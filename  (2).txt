@@ -1,0 +1,7 @@
+Eleven Store v6.3.2
+- Existing data/products.json preserved unchanged.
+- Backup copy added at data/products.backup.json.
+- Checkout redesigned to match the new Eleven Store dark-blue UI.
+- Phone input now supports selectable international country codes and a custom code option.
+- Orders save phone numbers in international format (example: +9665XXXXXXXX).
+- Existing support chat, Discord linking, bank-transfer receipt upload, and free premium checkout remain enabled.

@@ -1,0 +1,49 @@
+const cfg=window.ELEVEN_STORE||{},$=s=>document.querySelector(s);
+const money=n=>`${cfg.currency||"SAR"} ${Number(n||0).toLocaleString("en-US",{maximumFractionDigits:2})}`;
+function cart(){try{return JSON.parse(localStorage.getItem('eleven_cart')||'[]')}catch{return[]}}
+const items=cart();
+const countries=[
+['SA','Saudi Arabia','966'],['AE','United Arab Emirates','971'],['KW','Kuwait','965'],['QA','Qatar','974'],['BH','Bahrain','973'],['OM','Oman','968'],['YE','Yemen','967'],['JO','Jordan','962'],['EG','Egypt','20'],['IQ','Iraq','964'],['LB','Lebanon','961'],['SY','Syria','963'],['PS','Palestine','970'],['MA','Morocco','212'],['DZ','Algeria','213'],['TN','Tunisia','216'],['LY','Libya','218'],['SD','Sudan','249'],['SO','Somalia','252'],['DJ','Djibouti','253'],['MR','Mauritania','222'],
+['US','United States','1'],['CA','Canada','1'],['GB','United Kingdom','44'],['FR','France','33'],['DE','Germany','49'],['IT','Italy','39'],['ES','Spain','34'],['PT','Portugal','351'],['NL','Netherlands','31'],['BE','Belgium','32'],['CH','Switzerland','41'],['AT','Austria','43'],['SE','Sweden','46'],['NO','Norway','47'],['DK','Denmark','45'],['FI','Finland','358'],['IE','Ireland','353'],['PL','Poland','48'],['CZ','Czechia','420'],['GR','Greece','30'],['RO','Romania','40'],['HU','Hungary','36'],['UA','Ukraine','380'],['RU','Russia','7'],['TR','Türkiye','90'],
+['IN','India','91'],['PK','Pakistan','92'],['BD','Bangladesh','880'],['LK','Sri Lanka','94'],['NP','Nepal','977'],['CN','China','86'],['JP','Japan','81'],['KR','South Korea','82'],['ID','Indonesia','62'],['MY','Malaysia','60'],['SG','Singapore','65'],['TH','Thailand','66'],['PH','Philippines','63'],['VN','Vietnam','84'],['AF','Afghanistan','93'],['IR','Iran','98'],
+['AU','Australia','61'],['NZ','New Zealand','64'],['ZA','South Africa','27'],['NG','Nigeria','234'],['KE','Kenya','254'],['ET','Ethiopia','251'],['GH','Ghana','233'],['TZ','Tanzania','255'],['UG','Uganda','256'],['SN','Senegal','221'],
+['BR','Brazil','55'],['MX','Mexico','52'],['AR','Argentina','54'],['CL','Chile','56'],['CO','Colombia','57'],['PE','Peru','51'],['VE','Venezuela','58'],['OTHER','Other / custom code','custom']
+];
+let discord=null,unlocked=false,pricing={items:[],subtotal:items.reduce((a,x)=>a+Number(x.price||0)*Number(x.qty||1),0),discount:0,total:0,coupon:null};
+pricing.total=pricing.subtotal;
+function requestItems(){return items.map(x=>({productId:x.id,qty:x.qty,option:x.option||''}))}
+function setupCountries(){const select=$('#countryCode');select.innerHTML=countries.map(([iso,name,code])=>`<option value="${code}" data-iso="${iso}" ${iso==='SA'?'selected':''}>${name} ${code==='custom'?'':`(+${code})`}</option>`).join('');select.addEventListener('change',()=>{const custom=select.value==='custom';$('#customCodeWrap').classList.toggle('hidden',!custom);updatePhonePreview()});$('#customCode').addEventListener('input',updatePhonePreview);$('#phone').addEventListener('input',updatePhonePreview);updatePhonePreview()}
+function selectedCode(){const v=$('#countryCode').value;if(v!=='custom')return v;return $('#customCode').value.replace(/\D/g,'').slice(0,4)}
+function cleanLocalPhone(){return $('#phone').value.replace(/\D/g,'').replace(/^0+/,'')}
+function fullPhone(){const code=selectedCode(),local=cleanLocalPhone();return code&&local?`+${code}${local}`:''}
+function validPhone(){return /^\+[1-9]\d{6,14}$/.test(fullPhone())}
+function updatePhonePreview(){const code=selectedCode(),local=cleanLocalPhone(),preview=$('#phonePreview');preview.textContent=code?`Saved as +${code}${local||'…'}`:'Enter your international calling code.';preview.style.color=local&&!validPhone()?'#ff8b9a':''}
+function validEmail(v){return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)}
+function renderSummary(){
+  const rows=pricing.items.length?pricing.items:items.map(x=>({name:x.name,qty:x.qty,unitPrice:Number(x.price||0)}));
+  $('#topTotal').textContent=money(pricing.total);
+  $('#orderLines').innerHTML=rows.map(x=>`<div class="order-row"><span>${x.name} × ${x.qty}</span><strong>${money(Number(x.unitPrice||0)*Number(x.qty||1))}</strong></div>`).join('')+`${pricing.discount>0?`<div class="order-discount"><span>Coupon ${pricing.coupon?.code||''}</span><strong>- ${money(pricing.discount)}</strong></div>`:''}<div class="order-total"><span>Total</span><strong>${money(pricing.total)}</strong></div>`;
+  const free=pricing.total===0;
+  $('#paymentHeading').textContent=free?'Free Order':'Bank transfer';
+  $('#paymentSub').textContent=free?'Your total is zero after Premium or coupon discount.':'Transfer the exact amount, then upload the receipt.';
+  $('#bankBox').classList.toggle('hidden',free);$('#receiptBox').classList.toggle('hidden',free);$('#submitReceipt').textContent=free?'Place Free Order →':'I Have Paid — Upload Receipt →';
+}
+async function refreshPricing(code=localStorage.getItem('eleven_coupon')||'',showMessage=false){
+  const msg=$('#checkoutCouponMessage');if(showMessage){msg.textContent='Checking coupon...';msg.className=''}
+  try{const r=await fetch('/api/coupons/validate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,items:requestItems()})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.message||'Coupon could not be applied.');pricing={items:d.items||[],subtotal:Number(d.subtotal||0),discount:Number(d.discount||0),total:Number(d.total||0),coupon:d.coupon||null};if(code){localStorage.setItem('eleven_coupon',String(d.coupon?.code||code).toUpperCase());$('#checkoutCoupon').value=String(d.coupon?.code||code).toUpperCase();if(showMessage){msg.textContent=`Coupon applied. You saved ${money(pricing.discount)}.`;msg.className='coupon-ok'}}else{localStorage.removeItem('eleven_coupon');if(showMessage){msg.textContent='';msg.className=''}}renderSummary();return true}catch(e){if(code){if(showMessage){msg.textContent=e.message;msg.className='coupon-error'}localStorage.removeItem('eleven_coupon')}pricing={items:[],subtotal:items.reduce((a,x)=>a+Number(x.price||0)*Number(x.qty||1),0),discount:0,total:items.reduce((a,x)=>a+Number(x.price||0)*Number(x.qty||1),0),coupon:null};renderSummary();return false}}
+async function loadDiscord(){try{const r=await fetch('/api/auth/discord');const d=await r.json();if(!d.connected){location.replace('/login?next=%2Fcheckout');return}discord=d.user;$('#connectDiscord').classList.add('hidden');$('#discordUser').classList.remove('hidden');$('#discordUser').textContent=`@${discord.username}${d.premiumActive?' · PREMIUM':''}`;const logout=$('#logoutCustomer');if(logout)logout.classList.remove('hidden');await refreshPricing(localStorage.getItem('eleven_coupon')||'',false)}catch{location.replace('/login?next=%2Fcheckout')}}
+setupCountries();renderSummary();$('#checkoutCoupon').value=localStorage.getItem('eleven_coupon')||'';loadDiscord();
+$('#applyCheckoutCoupon').onclick=async()=>{const code=$('#checkoutCoupon').value.trim().toUpperCase();if(!code){localStorage.removeItem('eleven_coupon');await refreshPricing('',true);return}await refreshPricing(code,true)};
+$('#connectDiscord').onclick=()=>location.href='/auth/discord?next=%2Fcheckout';
+const logoutCustomer=$('#logoutCustomer');if(logoutCustomer)logoutCustomer.onclick=async()=>{try{await fetch('/api/auth/logout',{method:'POST'})}finally{location.href='/login?next=%2Fcheckout'}};
+$('#continue').onclick=()=>{const email=$('#email').value.trim();if(!selectedCode())return alert('Choose your country code.');if(!validPhone())return alert('Enter a valid phone number for the selected country.');if(!validEmail(email))return alert('Enter a valid email address.');if(!discord)return alert('Connect your Discord account first.');unlocked=true;$('#paymentArea').classList.remove('locked');document.querySelector('.payment-section').scrollIntoView({behavior:'smooth',block:'start'})};
+$('#receipt').addEventListener('change',()=>{const f=$('#receipt').files[0],name=$('#fileName');if(!f){name.classList.add('hidden');name.textContent='';return}name.textContent=f.name;name.classList.remove('hidden')});
+$('#submitReceipt').onclick=async()=>{
+  if(!unlocked)return;const total=Number(pricing.total||0),message=$('#receiptMessage');message.classList.add('hidden');message.classList.remove('error','order-processing');const phone=fullPhone();const couponCode=localStorage.getItem('eleven_coupon')||'';const btn=$('#submitReceipt'),idleText=total===0?'Place Free Order →':'I Have Paid — Upload Receipt →';btn.disabled=true;btn.textContent=total===0?'Placing order...':'Uploading...';
+  try{
+    let r;
+    if(total===0){r=await fetch('/api/checkout/free-order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,email:$('#email').value.trim(),items:requestItems(),couponCode})})}
+    else{const file=$('#receipt').files[0];if(!file)throw new Error('Please attach your payment receipt.');const form=new FormData();form.append('phone',phone);form.append('countryCode',`+${selectedCode()}`);form.append('email',$('#email').value.trim());form.append('items',JSON.stringify(requestItems()));form.append('couponCode',couponCode);form.append('receipt',file);r=await fetch('/api/checkout/bank-transfer',{method:'POST',body:form})}
+    const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.message||'Request failed.');message.innerHTML=total===0?`Order <strong>#${d.orderNumber}</strong> has been created and delivered to your history.`:`Order <strong>#${d.orderNumber}</strong> is now processing. Please wait for confirmation.`;message.classList.remove('hidden');message.classList.add('order-processing');localStorage.removeItem('eleven_cart');localStorage.removeItem('eleven_coupon')
+  }catch(err){message.textContent=err.message;message.classList.remove('hidden');message.classList.add('error')}finally{btn.disabled=false;btn.textContent=idleText}
+};

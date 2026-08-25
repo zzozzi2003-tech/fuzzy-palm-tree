@@ -1,0 +1,1 @@
+(()=>{const p=new URLSearchParams(location.search),next=p.get('next');if(next&&next.startsWith('/')&&!next.startsWith('//')&&!next.startsWith('/admin')){document.querySelector('#discordLogin').href=`/auth/discord?next=${encodeURIComponent(next)}`}})();
