@@ -1,1 +1,70 @@
-(()=>{if(window.__elevenSupportLoaded)return;window.__elevenSupportLoaded=true;const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');let token=localStorage.getItem('eleven_support_token');if(!/^[a-f0-9-]{16,64}$/i.test(token||'')){token=(crypto.randomUUID?crypto.randomUUID():`${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`);localStorage.setItem('eleven_support_token',token)}let open=false,lastCount=-1,poll=null;const lang=()=>((localStorage.getItem('eleven_lang')||document.documentElement.lang||'en').toLowerCase().startsWith('ar')?'ar':'en');const tr=(ar,en)=>lang()==='ar'?ar:en;const launch=document.createElement('button');launch.className='eleven-support-launch';launch.innerHTML='<i></i><span>الدعم الفني</span>';launch.type='button';const panel=document.createElement('section');panel.className='eleven-support-panel esc-hidden';panel.innerHTML=`<header class="esc-head"><div class="esc-agent"><div class="esc-avatar">SUP</div><div><b data-esc-title>الدعم الفني</b><small><i></i><span data-esc-online>متاح لاستقبال رسالتك</span></small></div></div><button class="esc-close" type="button">×</button></header><div class="esc-body"></div><form class="esc-form"><textarea maxlength="1200" data-esc-input placeholder="اكتب رسالتك..."></textarea><button type="submit">SEND</button></form><div class="esc-status hidden"></div>`;document.body.append(launch,panel);const body=panel.querySelector('.esc-body'),input=panel.querySelector('[data-esc-input]'),status=panel.querySelector('.esc-status');function labels(){launch.querySelector('span').textContent=tr('الدعم الفني','Technical Support');panel.querySelector('[data-esc-title]').textContent=tr('الدعم الفني','Technical Support');panel.querySelector('[data-esc-online]').textContent=tr('متاح لاستقبال رسالتك','Ready to help');input.placeholder=tr('اكتب رسالتك...','Write your message...')}function fmt(v){try{return new Intl.DateTimeFormat(lang()==='ar'?'ar-SA':'en-US',{hour:'2-digit',minute:'2-digit'}).format(new Date(v))}catch{return''}}function render(thread){const messages=thread?.messages||[];body.innerHTML=`<div class="esc-welcome">${tr('مرحبًا بك في Eleven Store<br>اكتب مشكلتك أو استفسارك وسيظهر مباشرة لفريق الدعم داخل لوحة الإدارة.','Welcome to Eleven Store<br>Send your question or issue and it will appear directly in the admin support dashboard.')}</div>`+messages.map(m=>`<div class="esc-msg ${m.from==='support'?'support':'customer'}">${esc(m.message)}<small>${m.from==='support'?tr('الدعم','Support'):tr('أنت','You')} · ${fmt(m.createdAt)}</small></div>`).join('');body.scrollTop=body.scrollHeight;lastCount=messages.length}async function load(silent=true){try{const r=await fetch(`/api/support/thread/${encodeURIComponent(token)}`);const d=await r.json();if(!r.ok)throw new Error(d.message||'Support error');const n=d.thread?.messages?.length||0;if(n!==lastCount||!silent)render(d.thread)}catch(e){if(!silent)showError(e.message)}}function showError(msg){status.textContent=msg;status.classList.remove('hidden');setTimeout(()=>status.classList.add('hidden'),3000)}function setOpen(v){open=v;labels();panel.classList.toggle('esc-hidden',!v);if(v){load(false);setTimeout(()=>input.focus(),50);clearInterval(poll);poll=setInterval(()=>load(true),3500)}else{clearInterval(poll);poll=null}}launch.onclick=()=>setOpen(!open);panel.querySelector('.esc-close').onclick=()=>setOpen(false);document.querySelectorAll('[data-open-support]').forEach(b=>b.addEventListener('click',()=>setOpen(true)));panel.querySelector('.esc-form').addEventListener('submit',async e=>{e.preventDefault();const message=input.value.trim();if(!message)return;const button=e.currentTarget.querySelector('button');button.disabled=true;try{const r=await fetch('/api/support/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,message})});const d=await r.json();if(!r.ok)throw new Error(d.message||'Could not send message');input.value='';render(d.thread)}catch(err){showError(err.message)}finally{button.disabled=false;input.focus()}});labels();})();
+
+(()=>{
+  const html=`
+  <button id="supportFab" class="support-fab" type="button" aria-label="Support chat">🤖</button>
+  <section id="supportPanel" class="support-panel hidden" aria-live="polite">
+    <div class="support-panel-head">
+      <div>
+        <strong>AI Support</strong>
+        <small>Replies instantly, human support can continue later.</small>
+      </div>
+      <button id="supportClose" type="button" aria-label="Close">×</button>
+    </div>
+    <div id="supportMessages" class="support-messages"></div>
+    <form id="supportForm" class="support-form">
+      <textarea id="supportInput" rows="3" maxlength="1200" placeholder="Write your message..."></textarea>
+      <div class="support-form-row">
+        <small id="supportState">Ready</small>
+        <button id="supportSend" type="submit">Send</button>
+      </div>
+    </form>
+  </section>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+
+  const $=s=>document.querySelector(s);
+  const fab=$('#supportFab'), panel=$('#supportPanel'), closeBtn=$('#supportClose'), messages=$('#supportMessages'), form=$('#supportForm'), input=$('#supportInput'), state=$('#supportState');
+  const tokenKey='eleven_support_token';
+  let token=localStorage.getItem(tokenKey);
+  if(!token){ token=(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(16).slice(2)}`).replace(/[^a-f0-9-]/gi,''); localStorage.setItem(tokenKey,token); }
+  let polling=0, opened=false;
+
+  const labelMap={customer:'You',support:'Support',ai:'AI'};
+  function timeText(v){ try{return new Date(v).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});}catch{return ''} }
+  function bubble(msg){
+    const mine=msg.from==='customer';
+    const cls=mine?'mine':msg.from==='ai'?'ai':'support';
+    const safe=(msg.message||'').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+    return `<article class="msg ${cls}"><div class="msg-meta"><span>${labelMap[msg.from]||'Support'}</span><time>${timeText(msg.createdAt)}</time></div><p>${safe.replace(/\n/g,'<br>')}</p></article>`;
+  }
+  function scrollDown(){ messages.scrollTop=messages.scrollHeight; }
+  async function loadThread(){
+    try{
+      const res=await fetch(`/api/support/thread/${encodeURIComponent(token)}`);
+      const data=await res.json();
+      const list=data.thread?.messages||[];
+      messages.innerHTML=list.length?list.map(bubble).join(''):`<div class="support-empty">Start a conversation with AI support.</div>`;
+      if(opened) scrollDown();
+    }catch(e){ state.textContent='Connection error'; }
+  }
+  async function sendMessage(text){
+    state.textContent='Sending...';
+    const res=await fetch('/api/support/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,message:text})});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.message||'Could not send message');
+    const list=data.thread?.messages||[];
+    messages.innerHTML=list.map(bubble).join('');
+    scrollDown();
+    state.textContent='AI replied';
+  }
+  fab.addEventListener('click',()=>{opened=!opened; panel.classList.toggle('hidden',!opened); fab.classList.toggle('active',opened); if(opened){loadThread().then(scrollDown);} });
+  closeBtn.addEventListener('click',()=>{opened=false; panel.classList.add('hidden'); fab.classList.remove('active');});
+  form.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const text=input.value.trim();
+    if(!text) return;
+    input.value='';
+    try{ await sendMessage(text); }catch(err){ state.textContent=err.message||'Send failed'; }
+  });
+  loadThread();
+  polling=window.setInterval(()=>{ if(opened) loadThread(); }, 7000);
+})();

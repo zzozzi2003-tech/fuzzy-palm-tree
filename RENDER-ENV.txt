@@ -1,0 +1,13 @@
+Copy these keys into Render > Web Service > Environment:
+
+NODE_ENV=production
+ADMIN_PASSWORD=CHANGE_ME_ADMIN_PASSWORD
+SESSION_SECRET=CHANGE_ME_LONG_RANDOM_SESSION_SECRET
+BASE_URL=https://eleven-store-sa.onrender.com
+GEIDEA_MERCHANT_PUBLIC_KEY=
+GEIDEA_API_PASSWORD=
+DISCORD_CLIENT_ID=CHANGE_ME_DISCORD_CLIENT_ID
+DISCORD_CLIENT_SECRET=CHANGE_ME_DISCORD_CLIENT_SECRET
+DISCORD_REDIRECT_URI=https://eleven-store-sa.onrender.com/auth/discord/callback
+
+PORT is provided automatically by Render, so you normally do not need to add PORT there.

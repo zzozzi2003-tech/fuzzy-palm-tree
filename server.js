@@ -217,6 +217,21 @@ function customerForSupport(req,token){
     discordUsername:u?.username||""
   };
 }
+
+function generateAiSupportReply(message){
+  const raw=String(message||'').trim();
+  const msg=raw.toLowerCase();
+  const ar=/[\u0600-\u06FF]/.test(raw);
+  const answer=(arText,enText)=>ar?arText:enText;
+  if(!raw)return answer('هلا، اكتب سؤالك وسأحاول مساعدتك مباشرة.','Hi, send your question and I will try to help right away.');
+  if(/price|cost|سعر|كم|discount|خصم|coupon|كوبون/.test(msg)) return answer('بالنسبة للأسعار أو الخصومات: تقدر تتصفح صفحة المنتج للتفاصيل، وإذا عندك كود خصم استخدمه في السلة قبل الدفع. وإذا احتجت عرض خاص سيتم تحويلك للدعم البشري.', 'For prices or discounts: check the product page details, and use any coupon in the cart before checkout. If you need a custom offer, a human support member can review it.');
+  if(/payment|pay|checkout|دفع|تحويل|شراء|order|طلب/.test(msg)) return answer('إذا عندك مشكلة في الدفع أو الطلب: تأكد أنك مسجل دخول Discord ثم أكمل من السلة إلى الدفع. وإذا كان الطلب متعطل اكتب رقم الطلب أو اسم المنتج ليتم مراجعته.', 'If you have a payment or order issue: make sure you are logged in with Discord, then continue from the cart to checkout. If an order is stuck, send the order number or product name for review.');
+  if(/premium|premier|بريم|اشتراك/.test(msg)) return answer('اشتراك Premium يعطيك وصولًا للمحتوى المشمول بالاشتراك حسب المدة المحددة. إذا حاب تعرف هل منتج معين داخل الاشتراك، اكتب اسمه هنا.', 'Premium gives you access to the subscription-included content during your active period. If you want to know whether a specific product is included, send its name here.');
+  if(/file|script|install|setup|تركيب|ملف|سكربت|error|bug|مشكلة|مايشتغل/.test(msg)) return answer('إذا عندك مشكلة تقنية في ملف أو سكربت: اكتب اسم المنتج، نوع المشكلة، وصورة أو نص الخطأ إن وجد. بهذه الطريقة يسهل على الدعم البشري متابعتها بسرعة.', 'If you have a technical issue with a file or script: send the product name, the issue type, and any screenshot or error text if available. That helps the human support team handle it faster.');
+  if(/hello|hi|hey|السلام|هلا|مرحبا/.test(msg)) return answer('هلا فيك! أنا المساعد الذكي للمتجر. اكتب اسم المنتج أو نوع المشكلة وسأوجهك مباشرة.', 'Welcome! I am the store AI assistant. Send the product name or the type of issue and I will guide you.');
+  return answer('تم استلام رسالتك. إذا كان الموضوع يتعلق بمنتج أو طلب، اكتب اسم المنتج أو رقم الطلب ليرد عليك المساعد الذكي بشكل أدق، وبعدها يقدر الدعم البشري يكمل معك إذا احتجت.', 'Your message was received. If this is about a product or an order, send the product name or order number for a more accurate AI reply, then human support can continue if needed.');
+}
+
 function computeStoreStats(){
   const rows=read(RECEIPT_LOGS,[]);
   const uniqueCustomers=new Set();
@@ -419,9 +434,13 @@ app.post("/api/support/message",(req,res)=>{
   thread.status="open";
   const list=Array.isArray(thread.messages)?thread.messages:[];
   list.push({id:nextId(list),from:"customer",message,createdAt:now});
+  const aiReply=generateAiSupportReply(message);
+  if(aiReply){
+    list.push({id:nextId(list),from:"ai",message:aiReply,createdAt:new Date(Date.parse(now)+450).toISOString()});
+  }
   thread.messages=list.slice(-300);
   thread.unreadAdmin=Number(thread.unreadAdmin||0)+1;
-  thread.updatedAt=now;
+  thread.updatedAt=new Date().toISOString();
   saveSupportChats(rows);
   res.json({ok:true,thread:publicSupportThread(thread)});
 });

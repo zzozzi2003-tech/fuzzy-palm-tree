@@ -1,0 +1,16 @@
+Eleven Store v6.4.3 FULL + ENV
+
+Included:
+- Full storefront
+- Modern product cards and stronger per-card mouse motion
+- Discord-based product ratings
+- AI-assisted support chat plus human admin support
+- Cart, coupon, login, checkout, orders and payment pages
+- Admin dashboard, admin access control and premium control
+- All data JSON files
+- Public assets and payment image
+- .env and .env.example
+- RENDER-ENV.txt for Render environment setup
+
+Security note:
+Replace every CHANGE_ME value before production use. Do not publish a real .env containing secrets to a public repository.

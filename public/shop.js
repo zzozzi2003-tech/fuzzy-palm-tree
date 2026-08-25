@@ -19,14 +19,16 @@ function bindProductMotion(){
       const x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;
       card.style.setProperty('--card-x',`${(x*100).toFixed(1)}%`);
       card.style.setProperty('--card-y',`${(y*100).toFixed(1)}%`);
-      card.style.setProperty('--ry',`${((x-.5)*4.2).toFixed(2)}deg`);
-      card.style.setProperty('--rx',`${((.5-y)*3.4).toFixed(2)}deg`);
+      card.style.setProperty('--ry',`${((x-.5)*10.5).toFixed(2)}deg`);
+      card.style.setProperty('--rx',`${((.5-y)*8.2).toFixed(2)}deg`);
+      card.style.setProperty('--lift',`${(1-Math.abs(.5-x)-Math.abs(.5-y)).toFixed(2)}`);
     },{passive:true});
     card.addEventListener('pointerleave',()=>{
       card.style.setProperty('--ry','0deg');
       card.style.setProperty('--rx','0deg');
       card.style.setProperty('--card-x','50%');
       card.style.setProperty('--card-y','20%');
+      card.style.setProperty('--lift','0');
     });
   });
 }
@@ -50,11 +52,12 @@ function render(){
     return `<article class="product-card">
       <a class="product-image" href="${productUrl(p)}">
         <img class="${p.image?'':'fallback'}" src="${p.image||'/assets/eleven-logo.png'}" alt="${String(p.name).replaceAll('"','&quot;')}">
-        <span class="product-hover-label">VIEW PRODUCT</span>
+        <span class="product-hover-label">${lang==='ar'?'عرض المنتج':'View product'}</span>
       </a>
       <div class="product-body">
         <div class="product-topline"><span class="product-tag">${p.tag||'ELEVEN'}</span><span class="product-type">${productTypeLabel(p)}</span></div>
         <a class="product-name" href="${productUrl(p)}">${p.name}</a>
+        <p class="product-excerpt">${String(p.shortDescription||p.description||'Premium FiveM-ready content for your server.').replace(/<[^>]*>/g,' ').slice(0,90)}</p>
         <div class="product-rating">${starLine(rating)}<span>${reviews?`${rating.toFixed(1)} (${reviews})`:(lang==='ar'?'بدون تقييم':'No ratings yet')}</span></div>
         <div class="product-bottom"><strong class="product-price">${isFree?(lang==='ar'?'مجاني':'FREE'):money(price(p))}</strong><a class="details-button" href="${productUrl(p)}">${lang==='ar'?'التفاصيل':'Details'}</a></div>
         <button class="add-button" data-id="${p.id}">${t('add')}</button>
