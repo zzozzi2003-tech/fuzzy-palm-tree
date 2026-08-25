@@ -1,0 +1,20 @@
+{
+  "main": {
+    "badge": "TOP PICKS",
+    "title": "Premium Scripts & Files",
+    "description": "Interactive browsing, Discord reviews, and live support.",
+    "image": ""
+  },
+  "fast": {
+    "badge": "FAST",
+    "title": "Modern storefront",
+    "description": "",
+    "image": ""
+  },
+  "smart": {
+    "badge": "SMART",
+    "title": "Technical support chat",
+    "description": "",
+    "image": ""
+  }
+}

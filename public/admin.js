@@ -433,3 +433,22 @@ setInterval(()=>{if(!$("#dashboard").classList.contains("hidden"))loadSupportThr
 setInterval(async()=>{if(!$('#loginView').classList.contains('hidden')){try{const access=await api('/api/admin/access-status');if(access.authenticated){csrf=access.csrfToken||csrf;adminRole='staff';adminCanEdit=!!access.canEdit;await showDashboard()}else showLogin(access)}catch{}}},5000);
 
 document.querySelector('.dash-actions')?.addEventListener('click',e=>{if(!e.target.closest('#showReviews'))document.querySelector('#reviewsAdminSection')?.classList.add('hidden')});
+
+
+// Homepage showcase editor
+let homepageContent={};
+function homepageCardEditor(key,label){
+  const x=homepageContent?.[key]||{};
+  return `<article class="homepage-edit-card"><div class="homepage-edit-preview ${x.image?'has-image':''}" style="${x.image?`background-image:url('${esc(x.image)}')`:''}">${x.image?`<label><input type="checkbox" name="${key}RemoveImage" value="1"> Remove current image</label>`:'<span>No image</span>'}</div><h3>${label}</h3><label>Badge<input name="${key}Badge" value="${esc(x.badge||'')}"></label><label>Title<input name="${key}Title" value="${esc(x.title||'')}"></label><label>Description<textarea name="${key}Description" rows="3">${esc(x.description||'')}</textarea></label><label>Image<input type="file" name="${key}Image" accept="image/png,image/jpeg,image/webp,image/gif"></label></article>`;
+}
+async function loadHomepageEditor(){
+  clearInterval(supportPoll);supportPoll=null;
+  homepageContent=await api('/api/admin/store-content');
+  $('#homepageCardsEditor').innerHTML=homepageCardEditor('main','Large card')+homepageCardEditor('fast','Top-right card')+homepageCardEditor('smart','Bottom-right card');
+  $('#homepageForm').classList.toggle('readonly-form',!adminCanEdit);Array.from($('#homepageForm').querySelectorAll('input,textarea,button')).forEach(el=>el.disabled=!adminCanEdit);
+  ['#homepageSection'].forEach(sel=>$(sel).classList.remove('hidden'));
+  ['#couponsSection','#adminAccessSection','#premiumSection','#supportSection','#notificationsSection','#ordersSection','#receiptLogsSection','#reviewsAdminSection','#productList'].forEach(sel=>$(sel)?.classList.add('hidden'));
+}
+$('#showHomepage')?.addEventListener('click',()=>loadHomepageEditor().catch(e=>alert(e.message)));
+$('#closeHomepage')?.addEventListener('click',()=>{$('#homepageSection').classList.add('hidden');$('#productList').classList.remove('hidden')});
+$('#homepageForm')?.addEventListener('submit',async e=>{e.preventDefault();if(!adminCanEdit)return;const fd=new FormData(e.currentTarget);['main','fast','smart'].forEach(k=>{const cb=e.currentTarget.querySelector(`[name="${k}RemoveImage"]`);if(cb)fd.set(`${k}RemoveImage`,cb.checked?'1':'0')});$('#saveHomepage').disabled=true;$('#homepageMessage').textContent='Saving...';try{const d=await api('/api/admin/store-content',{method:'POST',body:fd});homepageContent=d.content||{};$('#homepageMessage').textContent='Homepage updated.';await loadHomepageEditor()}catch(err){$('#homepageMessage').textContent=err.message}finally{$('#saveHomepage').disabled=false}});

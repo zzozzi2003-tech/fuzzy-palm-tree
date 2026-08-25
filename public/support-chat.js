@@ -1,7 +1,7 @@
 
 (()=>{
   const html=`
-  <button id="supportFab" class="support-fab" type="button" aria-label="Support chat">🤖</button>
+  <button id="supportFab" class="support-fab" type="button" aria-label="Support chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.75h14a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-8l-4.7 3.2c-.55.37-1.3-.02-1.3-.68v-2.52a2 2 0 0 1-2-2v-7.5a2 2 0 0 1 2-2Z"/><path d="M8 11.5h.01M12 11.5h.01M16 11.5h.01"/></svg></button>
   <section id="supportPanel" class="support-panel hidden" aria-live="polite">
     <div class="support-panel-head">
       <div>
@@ -57,7 +57,10 @@
     scrollDown();
     state.textContent=(data.thread?.claimedBy?'تم استلام المحادثة من الدعم':data.thread?.aiEnabled===false?'بانتظار الدعم':'تم الرد');
   }
-  fab.addEventListener('click',()=>{opened=!opened; panel.classList.toggle('hidden',!opened); fab.classList.toggle('active',opened); if(opened){loadThread().then(scrollDown);} });
+  function setOpen(value=true){opened=Boolean(value);panel.classList.toggle('hidden',!opened);fab.classList.toggle('active',opened);if(opened){loadThread().then(scrollDown);setTimeout(()=>input?.focus(),80)}}
+  fab.addEventListener('click',()=>setOpen(!opened));
+  window.openElevenSupport=()=>setOpen(true);
+  document.addEventListener('click',e=>{if(e.target.closest('[data-open-support]')){e.preventDefault();setOpen(true)}});
   closeBtn.addEventListener('click',()=>{opened=false; panel.classList.add('hidden'); fab.classList.remove('active');});
   form.addEventListener('submit',async e=>{
     e.preventDefault();

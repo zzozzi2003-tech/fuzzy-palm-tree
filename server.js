@@ -23,14 +23,17 @@ const SUPPORT_CHATS=path.join(DATA,"support-chats.json");
 const PREMIUM_ACCESS=path.join(DATA,"premium-access.json");
 const COUPONS=path.join(DATA,"coupons.json");
 const ADMIN_ACCESS=path.join(DATA,"admin-access.json");
+const STORE_CONTENT=path.join(DATA,"store-content.json");
 const RECEIPT_DIR=path.join(UPLOADS,"receipts");
 fs.mkdirSync(DATA,{recursive:true});fs.mkdirSync(UPLOADS,{recursive:true});fs.mkdirSync(RECEIPT_DIR,{recursive:true});
 
 function read(file,fallback){try{return fs.existsSync(file)?JSON.parse(fs.readFileSync(file,"utf8")):fallback}catch(e){console.error(e);return fallback}}
+function storeContent(){return read(STORE_CONTENT,{main:{},fast:{},smart:{}})}
+function saveStoreContent(v){write(STORE_CONTENT,v)}
 function write(file,data){const tmp=file+".tmp";fs.writeFileSync(tmp,JSON.stringify(data,null,2));fs.renameSync(tmp,file)}
 function products(){return read(PRODUCTS,[])}function saveProducts(v){write(PRODUCTS,v)}function orders(){return read(ORDERS,[])}function saveOrders(v){write(ORDERS,v)}
 function nextId(rows){return rows.reduce((m,x)=>Math.max(m,Number(x.id||0)),0)+1}
-if(!fs.existsSync(PRODUCTS))saveProducts([]);if(!fs.existsSync(ORDERS))saveOrders([]);if(!fs.existsSync(RECEIPT_LOGS))write(RECEIPT_LOGS,[]);if(!fs.existsSync(NOTIFICATIONS))write(NOTIFICATIONS,[]);if(!fs.existsSync(PRODUCT_COMMENTS))write(PRODUCT_COMMENTS,{});if(!fs.existsSync(SUPPORT_CHATS))write(SUPPORT_CHATS,[]);if(!fs.existsSync(PREMIUM_ACCESS))write(PREMIUM_ACCESS,[]);if(!fs.existsSync(COUPONS))write(COUPONS,[]);if(!fs.existsSync(ADMIN_ACCESS))write(ADMIN_ACCESS,[]);
+if(!fs.existsSync(PRODUCTS))saveProducts([]);if(!fs.existsSync(ORDERS))saveOrders([]);if(!fs.existsSync(RECEIPT_LOGS))write(RECEIPT_LOGS,[]);if(!fs.existsSync(NOTIFICATIONS))write(NOTIFICATIONS,[]);if(!fs.existsSync(PRODUCT_COMMENTS))write(PRODUCT_COMMENTS,{});if(!fs.existsSync(SUPPORT_CHATS))write(SUPPORT_CHATS,[]);if(!fs.existsSync(PREMIUM_ACCESS))write(PREMIUM_ACCESS,[]);if(!fs.existsSync(COUPONS))write(COUPONS,[]);if(!fs.existsSync(ADMIN_ACCESS))write(ADMIN_ACCESS,[]);if(!fs.existsSync(STORE_CONTENT))write(STORE_CONTENT,{main:{badge:"TOP PICKS",title:"Premium Scripts & Files",description:"Interactive browsing, Discord reviews, and live support.",image:""},fast:{badge:"FAST",title:"Modern storefront",description:"",image:""},smart:{badge:"SMART",title:"Technical support chat",description:"",image:""}});
 
 app.set("trust proxy",1);
 app.use(helmet({
@@ -447,6 +450,7 @@ app.get("/api/notifications",(req,res)=>{
 });
 
 app.get("/api/store-stats",(_req,res)=>res.json(computeStoreStats()));
+app.get("/api/store-content",(_req,res)=>res.json(storeContent()));
 
 app.get("/api/products/:id/comments",(req,res)=>{
   const entry=getReviewsForProduct(req.params.id),summary=getRatingSummary(req.params.id),u=req.session?.discordUser;
@@ -576,6 +580,28 @@ app.patch("/api/admin/support/:id/control",requireAdmin,requireAdminEdit,require
   else return res.status(400).json({message:"Invalid support control action."});
   thread.updatedAt=new Date().toISOString();saveSupportChats(rows);
   res.json({ok:true,thread:{...publicSupportThread(thread),customer:thread.customer||{}}});
+});
+
+
+app.get("/api/admin/store-content",requireAdmin,(_req,res)=>res.json(storeContent()));
+app.post("/api/admin/store-content",requireAdmin,requireAdminEdit,requireCsrf,upload.fields([{name:"mainImage",maxCount:1},{name:"fastImage",maxCount:1},{name:"smartImage",maxCount:1}]),(req,res)=>{
+  try{
+    const current=storeContent();
+    const result={...current};
+    for(const key of ["main","fast","smart"]){
+      const cap=key.charAt(0).toUpperCase()+key.slice(1);
+      result[key]={
+        badge:String(req.body?.[key+"Badge"]??current[key]?.badge??"").trim().slice(0,40),
+        title:String(req.body?.[key+"Title"]??current[key]?.title??"").trim().slice(0,100),
+        description:String(req.body?.[key+"Description"]??current[key]?.description??"").trim().slice(0,260),
+        image:String(current[key]?.image||"")
+      };
+      const file=req.files?.[key+"Image"]?.[0];
+      if(file) result[key].image=`/uploads/${file.filename}`;
+      if(String(req.body?.[key+"RemoveImage"]||"")==="1") result[key].image="";
+    }
+    saveStoreContent(result);res.json({ok:true,content:result});
+  }catch(e){console.error("[STORE CONTENT]",e);res.status(500).json({message:"Could not save homepage cards."})}
 });
 
 app.get("/api/admin/session",(req,res)=>{
