@@ -39,3 +39,15 @@
 .discord-admin-top{color:#80b0fa;border-color:#294a76;background:#0b1728}
 
 .support-head-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.admin-chat-msg.ai{align-self:flex-start;background:linear-gradient(135deg,#142943,#0f1e33);border:1px solid #31547c;color:#d8e8ff}.reviews-admin-list{display:grid;gap:10px}.review-admin-card{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:15px;border:1px solid #26364d;border-radius:13px;background:#0b1524}.review-admin-card h3{margin:5px 0;font-size:12px}.review-admin-card p{margin:4px 0 7px;color:#9caec5;font-size:10px;line-height:1.6}.review-admin-card small{color:#667c99;font-size:8px}.review-admin-stars{color:#ffc857;letter-spacing:1px;font-size:13px}
+
+
+/* Eleven custom confirmation modal */
+.site-confirm-modal{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:20px}
+.site-confirm-modal.hidden{display:none}
+.site-confirm-backdrop{position:absolute;inset:0;background:rgba(1,5,12,.76);backdrop-filter:blur(12px)}
+.site-confirm-card{position:relative;width:min(440px,calc(100vw - 28px));border:1px solid rgba(87,142,226,.26);border-radius:22px;background:linear-gradient(180deg,#0d1a2d,#08111e);box-shadow:0 36px 90px rgba(0,0,0,.55),0 0 60px rgba(49,118,229,.08);padding:22px}
+.site-confirm-icon{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:rgba(245,91,113,.1);border:1px solid rgba(245,91,113,.24);color:#ff8a9b;font-size:20px;font-weight:900;margin-bottom:16px}
+.site-confirm-copy h2{margin:7px 0 7px;font-size:20px}.site-confirm-copy p{margin:0;color:#8ea0bb;font-size:11px;line-height:1.7}
+.site-confirm-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:20px}.site-confirm-actions button{height:43px}
+.danger-confirm{background:linear-gradient(135deg,#c8475d,#e25d73)!important}
+.role-state{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:5px 8px;border-radius:999px;font-size:8px;font-weight:900;border:1px solid #2a3a52;color:#8495af;background:#0c1625}.role-state.ok{color:#62dca7;border-color:#285847;background:#0d241d}.role-state.fail{color:#f29aa8;border-color:#56333c;background:#26151a}

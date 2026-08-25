@@ -418,3 +418,20 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;background:
 .product-hover-label{display:none!important}
 @media(max-width:900px){.profile-name{display:none}.profile-button{padding:4px;max-width:none}.product-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media(max-width:500px){.product-grid{grid-template-columns:1fr 1fr!important;gap:10px!important}.product-body{padding:10px!important}.product-name{font-size:13px!important}.product-type{display:none}.details-button{display:none!important}.add-button{height:32px!important}.product-price{font-size:13px!important}}
+
+
+/* v6.4.6 polish */
+.discord-top-link .pill-dot,.pill-dot{display:none!important}
+#cartBadge{min-width:17px!important;width:auto!important;height:17px!important;padding:0 4px!important;font-size:8px!important;border-width:1px!important;right:-5px!important;top:-5px!important}
+.product-card .product-body{bottom:-4px!important;padding:13px 14px 12px!important;gap:6px!important}
+.product-card .product-topline{position:absolute!important;left:14px!important;right:14px!important;top:-176px!important;z-index:8!important}
+.product-card .product-name{margin-top:6px!important;font-size:16px!important}
+.product-card .product-rating{padding-top:1px!important}
+.product-card .product-bottom{margin-top:1px!important}
+.product-card .add-button{height:36px!important;margin-top:1px!important}
+@media(max-width:800px){.product-card .product-topline{top:-152px!important}.product-card .product-name{font-size:14px!important}}
+
+/* v6.4.7 Discord icon */
+.discord-top-link{gap:7px!important}
+.discord-logo{width:16px;height:16px;display:block;fill:#8fbaff;filter:drop-shadow(0 0 8px rgba(89,151,255,.28));transition:fill .18s ease,transform .18s ease}
+.discord-top-link:hover .discord-logo{fill:#fff;transform:translateY(-1px)}

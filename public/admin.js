@@ -1,6 +1,27 @@
 const $=s=>document.querySelector(s);
 let products=[],editing=null,csrf="",adminRole="none",adminCanEdit=false;
 
+let confirmResolver=null;
+function siteConfirm(message,{title='Confirm action',confirmText='Confirm'}={}){
+  const modal=$('#siteConfirmModal');
+  if(!modal)return Promise.resolve(window.confirm(message));
+  $('#siteConfirmTitle').textContent=title;
+  $('#siteConfirmText').textContent=message;
+  $('#siteConfirmOk').textContent=confirmText;
+  modal.classList.remove('hidden');
+  return new Promise(resolve=>{confirmResolver=resolve});
+}
+function closeSiteConfirm(value){
+  const modal=$('#siteConfirmModal');
+  if(modal)modal.classList.add('hidden');
+  const r=confirmResolver;confirmResolver=null;if(r)r(Boolean(value));
+}
+document.addEventListener('click',e=>{
+  if(e.target.closest('#siteConfirmOk'))closeSiteConfirm(true);
+  if(e.target.closest('#siteConfirmCancel')||e.target.matches('[data-confirm-cancel]'))closeSiteConfirm(false);
+});
+
+
 async function api(url,opts={}){
   opts.headers=opts.headers||{};
   const method=(opts.method||"GET").toUpperCase();
@@ -155,7 +176,7 @@ $("#productList").addEventListener("click",async e=>{
   }
 
   if(action==="delete"){
-    if(!confirm(`Delete "${product.name}"?`))return;
+    if(!(await siteConfirm(`Delete "${product.name}"?`,{title:"Delete product",confirmText:"Delete"})))return;
     btn.disabled=true;
     try{
       await api(`/api/admin/products/${id}`,{method:"DELETE"});
@@ -266,6 +287,8 @@ async function loadOrders(filter=currentOrderFilter){
       <div class="actions">
         ${o.receiptUrl?`<a class="action-btn" href="${esc(o.receiptUrl)}" target="_blank" rel="noopener">Receipt</a>`:""}
         ${o.status!=="delivered"&&adminCanEdit?`<button class="action-btn" data-order-action="delivered" data-order-id="${o.id}">Mark Delivered</button>`:""}
+        ${o.discord?.id?`<span class="role-state ${o.customerRoleAssigned?'ok':o.customerRoleError?'fail':''}">${o.customerRoleAssigned?'Customer role added':o.customerRoleError?'Role failed':'Role pending'}</span>`:''}
+        ${o.status==="delivered"&&o.discord?.id&&!o.customerRoleAssigned&&adminCanEdit?`<button class="action-btn" data-order-action="retry-role" data-order-id="${o.id}">Retry Customer Role</button>`:""}
       </div>
     </article>`).join("")||'<div class="empty-admin">No orders in this section.</div>';
   $("#ordersSection").classList.remove("hidden");
@@ -286,12 +309,21 @@ $("#ordersList").addEventListener("click",async e=>{
   const b=e.target.closest("[data-order-action]");
   if(!b)return;
   if(b.dataset.orderAction==="delivered"){
-    if(!confirm("Mark this order as delivered?"))return;
+    if(!(await siteConfirm("Mark this order as delivered?",{title:"Complete order",confirmText:"Mark Delivered"})))return;
     await api(`/api/admin/orders/${b.dataset.orderId}/status`,{
       method:"PATCH",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({status:"delivered"})
     });
     await loadOrders(currentOrderFilter);
+    return;
+  }
+  if(b.dataset.orderAction==="retry-role"){
+    b.disabled=true;
+    try{
+      const out=await api(`/api/admin/orders/${b.dataset.orderId}/customer-role`,{method:'POST'});
+      if(!out.customerRoleAssigned)throw new Error(out.customerRoleError||'Discord role could not be assigned.');
+      await loadOrders(currentOrderFilter);
+    }catch(err){await siteConfirm(err.message,{title:'Discord role error',confirmText:'OK'});}finally{b.disabled=false}
   }
 });
 
@@ -320,7 +352,7 @@ async function loadPremiumMembers(){
 }
 $('#showPremium').addEventListener('click',()=>loadPremiumMembers().catch(e=>alert(e.message)));
 $('#closePremium').addEventListener('click',()=>{$('#premiumSection').classList.add('hidden');$('#productList').classList.remove('hidden')});
-$('#premiumMembers').addEventListener('click',async e=>{const b=e.target.closest('[data-premium-id]');if(!b)return;const active=b.dataset.premiumActive==='1';const label=active?'restore Premium for':'revoke Premium from';if(!confirm(`Are you sure you want to ${label} this member?`))return;b.disabled=true;try{await api(`/api/admin/premium-members/${encodeURIComponent(b.dataset.premiumId)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({active})});await loadPremiumMembers()}catch(err){alert(err.message)}finally{b.disabled=false}});
+$('#premiumMembers').addEventListener('click',async e=>{const b=e.target.closest('[data-premium-id]');if(!b)return;const active=b.dataset.premiumActive==='1';const label=active?'restore Premium for':'revoke Premium from';if(!(await siteConfirm(`Are you sure you want to ${label} this member?`,{title:'Premium access'})))return;b.disabled=true;try{await api(`/api/admin/premium-members/${encodeURIComponent(b.dataset.premiumId)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({active})});await loadPremiumMembers()}catch(err){alert(err.message)}finally{b.disabled=false}});
 
 // Coupon management
 let coupons=[];
@@ -337,7 +369,7 @@ $('#showCoupons').addEventListener('click',()=>loadCoupons().catch(e=>alert(e.me
 $('#closeCoupons').addEventListener('click',()=>{$('#couponsSection').classList.add('hidden');$('#productList').classList.remove('hidden')});
 $('#cancelCouponEdit').addEventListener('click',resetCouponForm);
 $('#couponForm').addEventListener('submit',async e=>{e.preventDefault();if(!adminCanEdit)return;const id=$('#couponId').value;const body={code:$('#couponCode').value,type:$('#couponType').value,value:Number($('#couponValue').value),active:$('#couponActive').checked,productIds:couponSelectedIds()};$('#saveCoupon').disabled=true;try{await api(id?`/api/admin/coupons/${id}`:'/api/admin/coupons',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});resetCouponForm();await loadCoupons()}catch(err){$('#couponMessage').textContent=err.message}finally{$('#saveCoupon').disabled=false}});
-$('#couponList').addEventListener('click',async e=>{const edit=e.target.closest('[data-coupon-edit]'),del=e.target.closest('[data-coupon-delete]');if(edit){const c=coupons.find(x=>Number(x.id)===Number(edit.dataset.couponEdit));if(!c)return;$('#couponId').value=c.id;$('#couponCode').value=c.code;$('#couponType').value=c.type;$('#couponValue').value=c.value;$('#couponActive').checked=c.active!==false;renderCouponProductOptions(c.productIds||[]);$('#cancelCouponEdit').classList.remove('hidden');$('#couponForm').scrollIntoView({behavior:'smooth'});return}if(del){if(!confirm('Delete this coupon?'))return;await api(`/api/admin/coupons/${del.dataset.couponDelete}`,{method:'DELETE'});await loadCoupons()}});
+$('#couponList').addEventListener('click',async e=>{const edit=e.target.closest('[data-coupon-edit]'),del=e.target.closest('[data-coupon-delete]');if(edit){const c=coupons.find(x=>Number(x.id)===Number(edit.dataset.couponEdit));if(!c)return;$('#couponId').value=c.id;$('#couponCode').value=c.code;$('#couponType').value=c.type;$('#couponValue').value=c.value;$('#couponActive').checked=c.active!==false;renderCouponProductOptions(c.productIds||[]);$('#cancelCouponEdit').classList.remove('hidden');$('#couponForm').scrollIntoView({behavior:'smooth'});return}if(del){if(!(await siteConfirm('Delete this coupon?',{title:'Delete coupon',confirmText:'Delete'})))return;await api(`/api/admin/coupons/${del.dataset.couponDelete}`,{method:'DELETE'});await loadCoupons()}});
 
 
 // Review moderation
@@ -349,7 +381,7 @@ async function loadAdminReviews(){
 }
 $('#showReviews').addEventListener('click',()=>loadAdminReviews().catch(e=>alert(e.message)));
 $('#closeReviewsAdmin').addEventListener('click',()=>{$('#reviewsAdminSection').classList.add('hidden');$('#productList').classList.remove('hidden')});
-$('#reviewsAdminList').addEventListener('click',async e=>{const b=e.target.closest('[data-review-delete]');if(!b||!adminCanEdit)return;if(!confirm('Delete this review?'))return;await api(`/api/admin/products/${b.dataset.reviewProduct}/reviews/${encodeURIComponent(b.dataset.reviewDelete)}`,{method:'DELETE'});await loadAdminReviews()});
+$('#reviewsAdminList').addEventListener('click',async e=>{const b=e.target.closest('[data-review-delete]');if(!b||!adminCanEdit)return;if(!(await siteConfirm('Delete this review?',{title:'Delete review',confirmText:'Delete'})))return;await api(`/api/admin/products/${b.dataset.reviewProduct}/reviews/${encodeURIComponent(b.dataset.reviewDelete)}`,{method:'DELETE'});await loadAdminReviews()});
 
 // Owner-only staff access management
 async function loadAdminAccess(background=false){

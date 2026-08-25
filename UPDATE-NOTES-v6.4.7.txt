@@ -1,0 +1,2 @@
+Eleven Store v6.4.7
+- Replaced the Discord status dot with a Discord logo icon in the header.

@@ -306,23 +306,51 @@ const DISCORD_BOT_TOKEN=process.env.DISCORD_BOT_TOKEN||"";
 const DISCORD_GUILD_ID=process.env.DISCORD_GUILD_ID||"";
 const DISCORD_CUSTOMER_ROLE_ID=process.env.DISCORD_CUSTOMER_ROLE_ID||"";
 
+async function discordApi(pathname,opts={}){
+  const r=await fetch(`https://discord.com/api/v10${pathname}`,{...opts,headers:{Authorization:`Bot ${DISCORD_BOT_TOKEN}`,'User-Agent':'ElevenStore/6.4.6',...(opts.headers||{})}});
+  const text=await r.text().catch(()=>"");
+  let data=null;try{data=text?JSON.parse(text):null}catch{data=text}
+  return {r,data,text};
+}
+
+async function checkDiscordCustomerRoleConfig(){
+  if(!DISCORD_BOT_TOKEN||!DISCORD_GUILD_ID||!DISCORD_CUSTOMER_ROLE_ID)return {ok:false,reason:'Missing Render environment variables'};
+  try{
+    const roleRes=await discordApi(`/guilds/${encodeURIComponent(DISCORD_GUILD_ID)}/roles`);
+    if(!roleRes.r.ok)return {ok:false,status:roleRes.r.status,reason:roleRes.data?.message||roleRes.text||'Could not read guild roles'};
+    const role=Array.isArray(roleRes.data)?roleRes.data.find(x=>String(x.id)===String(DISCORD_CUSTOMER_ROLE_ID)):null;
+    if(!role)return {ok:false,reason:'Customer role ID was not found in this Discord server'};
+    const botRes=await discordApi(`/users/@me`);
+    if(!botRes.r.ok)return {ok:false,status:botRes.r.status,reason:botRes.data?.message||'Bot token is invalid'};
+    return {ok:true,roleName:role.name||'Customer',botUsername:botRes.data?.username||'Bot'};
+  }catch(e){return {ok:false,reason:e?.message||'Discord configuration check failed'}}
+}
+
 async function assignDiscordCustomerRole(discordId){
   const userId=String(discordId||"").trim();
   if(!/^\d{10,25}$/.test(userId))return {ok:false,skipped:true,reason:"Invalid Discord user ID"};
   if(!DISCORD_BOT_TOKEN||!DISCORD_GUILD_ID||!DISCORD_CUSTOMER_ROLE_ID){
-    console.warn(`[DISCORD CUSTOMER ROLE] skipped for ${userId}: missing DISCORD_BOT_TOKEN / DISCORD_GUILD_ID / DISCORD_CUSTOMER_ROLE_ID`);
-    return {ok:false,skipped:true,reason:"Discord customer role is not configured"};
+    console.warn(`[DISCORD CUSTOMER ROLE] skipped for ${userId}: configure DISCORD_BOT_TOKEN, DISCORD_GUILD_ID and DISCORD_CUSTOMER_ROLE_ID in Render Environment`);
+    return {ok:false,skipped:true,reason:"Discord role variables are missing in Render Environment"};
   }
   try{
-    const url=`https://discord.com/api/v10/guilds/${encodeURIComponent(DISCORD_GUILD_ID)}/members/${encodeURIComponent(userId)}/roles/${encodeURIComponent(DISCORD_CUSTOMER_ROLE_ID)}`;
-    const r=await fetch(url,{method:"PUT",headers:{Authorization:`Bot ${DISCORD_BOT_TOKEN}`,"Content-Length":"0"}});
-    if(r.status===204){
+    const memberCheck=await discordApi(`/guilds/${encodeURIComponent(DISCORD_GUILD_ID)}/members/${encodeURIComponent(userId)}`);
+    if(!memberCheck.r.ok){
+      const reason=memberCheck.r.status===404?'Customer is not a member of the configured Discord server':memberCheck.data?.message||`Discord member check HTTP ${memberCheck.r.status}`;
+      console.error(`[DISCORD CUSTOMER ROLE] member check failed | user=${userId} | ${reason}`);
+      return {ok:false,status:memberCheck.r.status,reason};
+    }
+    const add=await discordApi(`/guilds/${encodeURIComponent(DISCORD_GUILD_ID)}/members/${encodeURIComponent(userId)}/roles/${encodeURIComponent(DISCORD_CUSTOMER_ROLE_ID)}`,{method:'PUT'});
+    if(add.r.status===204){
       console.log(`[DISCORD CUSTOMER ROLE] assigned | user=${userId} | role=${DISCORD_CUSTOMER_ROLE_ID}`);
       return {ok:true};
     }
-    const body=await r.text().catch(()=>"");
-    console.error(`[DISCORD CUSTOMER ROLE] failed | user=${userId} | HTTP ${r.status} | ${body.slice(0,500)}`);
-    return {ok:false,status:r.status,reason:body||`HTTP ${r.status}`};
+    let reason=add.data?.message||add.text||`HTTP ${add.r.status}`;
+    if(add.r.status===403)reason='Discord rejected the role: give the bot Manage Roles and move the bot role above the Customer role';
+    if(add.r.status===404)reason='Discord guild/member/role was not found. Check Guild ID and Customer Role ID';
+    if(add.r.status===401)reason='Discord bot token is invalid or has been reset';
+    console.error(`[DISCORD CUSTOMER ROLE] failed | user=${userId} | HTTP ${add.r.status} | ${reason}`);
+    return {ok:false,status:add.r.status,reason};
   }catch(e){
     console.error(`[DISCORD CUSTOMER ROLE] error | user=${userId}`,e);
     return {ok:false,reason:e?.message||"Discord request failed"};
@@ -679,6 +707,21 @@ app.patch("/api/admin/orders/:id/status",requireAdmin,requireAdminEdit,requireCs
 });
 
 
+app.post("/api/admin/orders/:id/customer-role",requireAdmin,requireAdminEdit,requireCsrf,async(req,res)=>{
+  const rows=read(RECEIPT_LOGS,[]),id=Number(req.params.id),i=rows.findIndex(x=>Number(x.id)===id);
+  if(i<0)return res.status(404).json({message:'Order not found.'});
+  const discordId=rows[i]?.discord?.id;
+  if(!discordId)return res.status(400).json({message:'This order has no linked Discord account.'});
+  const result=await assignDiscordCustomerRole(discordId);
+  rows[i].customerRoleAssigned=result.ok===true;
+  rows[i].customerRoleUpdatedAt=new Date().toISOString();
+  if(result.ok)delete rows[i].customerRoleError;else rows[i].customerRoleError=String(result.reason||`HTTP ${result.status||'error'}`).slice(0,300);
+  write(RECEIPT_LOGS,rows);
+  res.json({...rows[i],discordRoleResult:result});
+});
+
+app.get("/api/admin/discord-role-status",requireAdmin,async(_req,res)=>res.json(await checkDiscordCustomerRoleConfig()));
+
 app.get("/api/admin/premium-members",requireAdmin,(_req,res)=>res.json(premiumMembers()));
 app.patch("/api/admin/premium-members/:discordId",requireAdmin,requireAdminEdit,requireCsrf,(req,res)=>{
   const discordId=String(req.params.discordId||"").trim();
@@ -851,7 +894,7 @@ app.post("/api/checkout/cart-session",requireCustomerApi,async(req,res)=>{
   }catch(e){console.error(e);res.status(500).json({message:"Unable to start checkout."})}
 });
 app.post("/api/payment/callback",(req,res)=>{console.log("Geidea callback",req.body);res.sendStatus(200)});
-app.get("/api/health",(_req,res)=>res.json({ok:true,paymentConfigured:Boolean(MPK&&APIP&&BASE),discordCustomerRoleConfigured:Boolean(DISCORD_BOT_TOKEN&&DISCORD_GUILD_ID&&DISCORD_CUSTOMER_ROLE_ID)}));
+app.get("/api/health",async(_req,res)=>{const discordRole=await checkDiscordCustomerRoleConfig();res.json({ok:true,paymentConfigured:Boolean(MPK&&APIP&&BASE),discordCustomerRoleConfigured:Boolean(DISCORD_BOT_TOKEN&&DISCORD_GUILD_ID&&DISCORD_CUSTOMER_ROLE_ID),discordRole});});
 
 
 app.use((err,req,res,next)=>{
@@ -865,4 +908,10 @@ app.use((err,req,res,next)=>{
 });
 
 app.use((_req,res)=>res.status(404).send("Not found"));
-app.listen(PORT,()=>{console.log(`Eleven Store v6.4.4 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});
+app.listen(PORT,async()=>{
+  console.log(`Eleven Store v6.4.6 running: http://localhost:${PORT}`);
+  console.log(`Admin: http://localhost:${PORT}/admin`);
+  const roleCheck=await checkDiscordCustomerRoleConfig();
+  if(roleCheck.ok)console.log(`[DISCORD CUSTOMER ROLE] ready | bot=${roleCheck.botUsername} | role=${roleCheck.roleName}`);
+  else console.warn(`[DISCORD CUSTOMER ROLE] not ready | ${roleCheck.reason||'Check Render Environment and Discord role hierarchy'}`);
+});

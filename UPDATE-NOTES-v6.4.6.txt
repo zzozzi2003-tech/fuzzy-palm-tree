@@ -1,0 +1,8 @@
+Eleven Store v6.4.6
+- Removed Discord blue dot.
+- Product text moved lower inside square product cards.
+- Smaller cart count badge.
+- Replaced browser confirm dialogs with Eleven Store custom modal.
+- Improved Discord Customer role diagnostics and role assignment errors.
+- Added Retry Customer Role action for delivered orders.
+- Added Discord role configuration status to /api/health.
