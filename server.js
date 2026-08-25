@@ -25,12 +25,164 @@ const COUPONS=path.join(DATA,"coupons.json");
 const ADMIN_ACCESS=path.join(DATA,"admin-access.json");
 const STORE_CONTENT=path.join(DATA,"store-content.json");
 const RECEIPT_DIR=path.join(UPLOADS,"receipts");
+
+/* Persistent storage (Supabase)
+   Keeps JSON data + uploaded images alive across Render restarts/redeploys.
+   Required env vars:
+   SUPABASE_URL
+   SUPABASE_SERVICE_ROLE_KEY
+   Optional:
+   SUPABASE_BUCKET=eleven-store
+   SUPABASE_STATE_TABLE=store_state
+*/
+const SUPABASE_URL=String(process.env.SUPABASE_URL||"").replace(/\/$/,"");
+const SUPABASE_SERVICE_ROLE_KEY=String(process.env.SUPABASE_SERVICE_ROLE_KEY||"");
+const SUPABASE_BUCKET=String(process.env.SUPABASE_BUCKET||"eleven-store").trim()||"eleven-store";
+const SUPABASE_STATE_TABLE=String(process.env.SUPABASE_STATE_TABLE||"store_state").trim()||"store_state";
+const SUPABASE_ENABLED=Boolean(SUPABASE_URL&&SUPABASE_SERVICE_ROLE_KEY);
+let PERSISTENCE_READY=false;
+const persistQueues=new Map();
+
+const PERSISTED_JSON_FILES=new Map([
+  [PRODUCTS,"products"],
+  [ORDERS,"orders"],
+  [RECEIPT_LOGS,"receipt-logs"],
+  [NOTIFICATIONS,"notifications"],
+  [PRODUCT_COMMENTS,"product-comments"],
+  [SUPPORT_CHATS,"support-chats"],
+  [PREMIUM_ACCESS,"premium-access"],
+  [COUPONS,"coupons"],
+  [ADMIN_ACCESS,"admin-access"],
+  [STORE_CONTENT,"store-content"]
+]);
+
+function sbHeaders(extra={}){
+  return {
+    apikey:SUPABASE_SERVICE_ROLE_KEY,
+    Authorization:`Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    ...extra
+  };
+}
+function localWrite(file,data){
+  const tmp=file+".tmp";
+  fs.writeFileSync(tmp,JSON.stringify(data,null,2));
+  fs.renameSync(tmp,file);
+}
+async function supabaseGetState(key){
+  if(!SUPABASE_ENABLED)return null;
+  const url=`${SUPABASE_URL}/rest/v1/${encodeURIComponent(SUPABASE_STATE_TABLE)}?select=value&key=eq.${encodeURIComponent(key)}&limit=1`;
+  const r=await fetch(url,{headers:sbHeaders({Accept:"application/json"})});
+  if(!r.ok)throw new Error(`Supabase state read failed (${r.status}): ${await r.text().catch(()=>r.statusText)}`);
+  const rows=await r.json();
+  return Array.isArray(rows)&&rows.length?rows[0].value:null;
+}
+async function supabaseUpsertState(key,value){
+  if(!SUPABASE_ENABLED)return;
+  const url=`${SUPABASE_URL}/rest/v1/${encodeURIComponent(SUPABASE_STATE_TABLE)}?on_conflict=key`;
+  const r=await fetch(url,{
+    method:"POST",
+    headers:sbHeaders({
+      "Content-Type":"application/json",
+      Prefer:"resolution=merge-duplicates,return=minimal"
+    }),
+    body:JSON.stringify([{key,value,updated_at:new Date().toISOString()}])
+  });
+  if(!r.ok)throw new Error(`Supabase state write failed (${r.status}): ${await r.text().catch(()=>r.statusText)}`);
+}
+function queueStatePersist(file,data){
+  if(!PERSISTENCE_READY||!SUPABASE_ENABLED)return;
+  const key=PERSISTED_JSON_FILES.get(file);
+  if(!key)return;
+  const snapshot=JSON.parse(JSON.stringify(data));
+  const prev=persistQueues.get(key)||Promise.resolve();
+  const next=prev.catch(()=>{}).then(()=>supabaseUpsertState(key,snapshot));
+  persistQueues.set(key,next);
+  next.catch(e=>console.error(`[PERSISTENCE] ${key} save failed:`,e.message||e))
+      .finally(()=>{if(persistQueues.get(key)===next)persistQueues.delete(key)});
+}
+async function bootstrapPersistentState(){
+  if(!SUPABASE_ENABLED){
+    PERSISTENCE_READY=true;
+    console.warn("[PERSISTENCE] Supabase is not configured. Render local data can disappear after restart/redeploy.");
+    return;
+  }
+  console.log("[PERSISTENCE] Loading store data from Supabase...");
+  for(const [file,key] of PERSISTED_JSON_FILES){
+    try{
+      const remote=await supabaseGetState(key);
+      if(remote!==null&&remote!==undefined){
+        localWrite(file,remote);
+        console.log(`[PERSISTENCE] restored ${key}`);
+      }else{
+        const local=read(file,null);
+        if(local!==null){
+          await supabaseUpsertState(key,local);
+          console.log(`[PERSISTENCE] seeded ${key}`);
+        }
+      }
+    }catch(e){
+      console.error(`[PERSISTENCE] ${key} bootstrap failed:`,e.message||e);
+      throw e;
+    }
+  }
+  PERSISTENCE_READY=true;
+  console.log("[PERSISTENCE] JSON data is protected by Supabase.");
+}
+function storageObjectUrl(objectPath){
+  const clean=String(objectPath||"").replace(/^\/+/,"").split("/").map(encodeURIComponent).join("/");
+  return `${SUPABASE_URL}/storage/v1/object/${encodeURIComponent(SUPABASE_BUCKET)}/${clean}`;
+}
+async function persistDiskUpload(file){
+  if(!file||!SUPABASE_ENABLED)return;
+  const body=fs.readFileSync(file.path);
+  const objectPath=String(file.filename||path.basename(file.path));
+  const r=await fetch(storageObjectUrl(objectPath),{
+    method:"POST",
+    headers:sbHeaders({
+      "Content-Type":file.mimetype||"application/octet-stream",
+      "x-upsert":"true"
+    }),
+    body
+  });
+  if(!r.ok)throw new Error(`Supabase image upload failed (${r.status}): ${await r.text().catch(()=>r.statusText)}`);
+}
+async function persistBufferUpload(objectPath,buffer,mimetype){
+  if(!SUPABASE_ENABLED)return false;
+  const r=await fetch(storageObjectUrl(objectPath),{
+    method:"POST",
+    headers:sbHeaders({
+      "Content-Type":mimetype||"application/octet-stream",
+      "x-upsert":"true"
+    }),
+    body:buffer
+  });
+  if(!r.ok)throw new Error(`Supabase file upload failed (${r.status}): ${await r.text().catch(()=>r.statusText)}`);
+  return true;
+}
+async function serveSupabaseUpload(req,res,next){
+  if(!SUPABASE_ENABLED)return next();
+  try{
+    const objectPath=decodeURIComponent(String(req.path||"").replace(/^\/+/,""));
+    if(!objectPath)return next();
+    const r=await fetch(storageObjectUrl(objectPath),{headers:sbHeaders()});
+    if(r.status===404)return next();
+    if(!r.ok)throw new Error(`Supabase file read failed (${r.status})`);
+    const buf=Buffer.from(await r.arrayBuffer());
+    const type=r.headers.get("content-type");
+    if(type)res.set("Content-Type",type);
+    res.set("Cache-Control","public, max-age=86400");
+    return res.send(buf);
+  }catch(e){
+    console.error("[PERSISTENCE] upload proxy failed:",e.message||e);
+    return next();
+  }
+}
 fs.mkdirSync(DATA,{recursive:true});fs.mkdirSync(UPLOADS,{recursive:true});fs.mkdirSync(RECEIPT_DIR,{recursive:true});
 
 function read(file,fallback){try{return fs.existsSync(file)?JSON.parse(fs.readFileSync(file,"utf8")):fallback}catch(e){console.error(e);return fallback}}
 function storeContent(){return read(STORE_CONTENT,{main:{},fast:{},smart:{}})}
 function saveStoreContent(v){write(STORE_CONTENT,v)}
-function write(file,data){const tmp=file+".tmp";fs.writeFileSync(tmp,JSON.stringify(data,null,2));fs.renameSync(tmp,file)}
+function write(file,data){localWrite(file,data);queueStatePersist(file,data)}
 function products(){return read(PRODUCTS,[])}function saveProducts(v){write(PRODUCTS,v)}function orders(){return read(ORDERS,[])}function saveOrders(v){write(ORDERS,v)}
 function nextId(rows){return rows.reduce((m,x)=>Math.max(m,Number(x.id||0)),0)+1}
 if(!fs.existsSync(PRODUCTS))saveProducts([]);if(!fs.existsSync(ORDERS))saveOrders([]);if(!fs.existsSync(RECEIPT_LOGS))write(RECEIPT_LOGS,[]);if(!fs.existsSync(NOTIFICATIONS))write(NOTIFICATIONS,[]);if(!fs.existsSync(PRODUCT_COMMENTS))write(PRODUCT_COMMENTS,{});if(!fs.existsSync(SUPPORT_CHATS))write(SUPPORT_CHATS,[]);if(!fs.existsSync(PREMIUM_ACCESS))write(PREMIUM_ACCESS,[]);if(!fs.existsSync(COUPONS))write(COUPONS,[]);if(!fs.existsSync(ADMIN_ACCESS))write(ADMIN_ACCESS,[]);if(!fs.existsSync(STORE_CONTENT))write(STORE_CONTENT,{main:{badge:"TOP PICKS",title:"Premium Scripts & Files",description:"Interactive browsing, Discord reviews, and live support.",image:""},fast:{badge:"FAST",title:"Modern storefront",description:"",image:""},smart:{badge:"SMART",title:"Technical support chat",description:"",image:""}});
@@ -287,7 +439,8 @@ function computeStoreStats(){
 }
 
 app.use("/assets",express.static(path.join(PUBLIC,"assets"),{maxAge:"1d"}));
-app.use("/uploads",express.static(UPLOADS,{maxAge:"1d",fallthrough:false}));
+app.use("/uploads",express.static(UPLOADS,{maxAge:"1d",fallthrough:true}));
+app.use("/uploads",serveSupabaseUpload);
 ["store.css","commerce.css","checkout.css","login.css","admin.css","orders.css","product.css","support-chat.css","store-config.js","shop.js","cart.js","checkout.js","login.js","admin.js","orders.js","product.js","support-chat.js"].forEach(file=>{
   app.get("/"+file,(_req,res)=>res.sendFile(path.join(PUBLIC,file)));
 });
@@ -584,7 +737,7 @@ app.patch("/api/admin/support/:id/control",requireAdmin,requireAdminEdit,require
 
 
 app.get("/api/admin/store-content",requireAdmin,(_req,res)=>res.json(storeContent()));
-app.post("/api/admin/store-content",requireAdmin,requireAdminEdit,requireCsrf,upload.fields([{name:"mainImage",maxCount:1},{name:"fastImage",maxCount:1},{name:"smartImage",maxCount:1}]),(req,res)=>{
+app.post("/api/admin/store-content",requireAdmin,requireAdminEdit,requireCsrf,upload.fields([{name:"mainImage",maxCount:1},{name:"fastImage",maxCount:1},{name:"smartImage",maxCount:1}]),async(req,res)=>{
   try{
     const current=storeContent();
     const result={...current};
@@ -597,7 +750,7 @@ app.post("/api/admin/store-content",requireAdmin,requireAdminEdit,requireCsrf,up
         image:String(current[key]?.image||"")
       };
       const file=req.files?.[key+"Image"]?.[0];
-      if(file) result[key].image=`/uploads/${file.filename}`;
+      if(file){await persistDiskUpload(file);result[key].image=`/uploads/${file.filename}`;}
       if(String(req.body?.[key+"RemoveImage"]||"")==="1") result[key].image="";
     }
     saveStoreContent(result);res.json({ok:true,content:result});
@@ -648,7 +801,7 @@ app.delete("/api/admin/products/:productId/reviews/:reviewId",requireAdmin,requi
   saveReviewsForProduct(productId,entry);res.json({ok:true,rating:getRatingSummary(productId)});
 });
 
-app.post("/api/admin/products",requireAdmin,requireAdminEdit,requireCsrf,upload.fields([{name:"image",maxCount:1},{name:"previewImages",maxCount:12}]),(req,res)=>{
+app.post("/api/admin/products",requireAdmin,requireAdminEdit,requireCsrf,upload.fields([{name:"image",maxCount:1},{name:"previewImages",maxCount:12}]),async(req,res)=>{
   const rows=products(),name=String(req.body.name||"").trim(),slug=cleanSlug(req.body.slug||name),price=Number(req.body.price||0);
   if(!name||!slug)return res.status(400).json({message:"Name and slug are required."});
   if(!Number.isFinite(price)||price<0)return res.status(400).json({message:"Invalid price."});
@@ -658,10 +811,16 @@ app.post("/api/admin/products",requireAdmin,requireAdminEdit,requireCsrf,upload.
   if(productType==="programming_service"){
     try{servicePricing=JSON.parse(String(req.body.servicePricing||"{}"))}catch{}
   }
-  const row={id:nextId(rows),slug,name,tag:String(req.body.tag||"ELEVEN").trim().slice(0,30),description:String(req.body.description||"").trim(),price,image:req.files?.image?.[0]?`/uploads/${req.files.image[0].filename}`:"",previewImages:(req.files?.previewImages||[]).map(f=>`/uploads/${f.filename}`),active:String(req.body.active||"1")==="1",sortOrder:Number(req.body.sortOrder||0),productType,servicePricing};
-  rows.push(row);saveProducts(rows);res.json(row)
+  try{
+    const imageFile=req.files?.image?.[0]||null;
+    const previewFiles=req.files?.previewImages||[];
+    if(imageFile)await persistDiskUpload(imageFile);
+    for(const f of previewFiles)await persistDiskUpload(f);
+    const row={id:nextId(rows),slug,name,tag:String(req.body.tag||"ELEVEN").trim().slice(0,30),description:String(req.body.description||"").trim(),price,image:imageFile?`/uploads/${imageFile.filename}`:"",previewImages:previewFiles.map(f=>`/uploads/${f.filename}`),active:String(req.body.active||"1")==="1",sortOrder:Number(req.body.sortOrder||0),productType,servicePricing};
+    rows.push(row);saveProducts(rows);res.json(row)
+  }catch(e){console.error("[PRODUCT CREATE]",e);res.status(500).json({message:"Could not persist product image/data."})}
 });
-app.put("/api/admin/products/:id",requireAdmin,requireAdminEdit,requireCsrf,upload.fields([{name:"image",maxCount:1},{name:"previewImages",maxCount:12}]),(req,res)=>{
+app.put("/api/admin/products/:id",requireAdmin,requireAdminEdit,requireCsrf,upload.fields([{name:"image",maxCount:1},{name:"previewImages",maxCount:12}]),async(req,res)=>{
   const rows=products(),id=Number(req.params.id),i=rows.findIndex(p=>Number(p.id)===id);if(i<0)return res.status(404).json({message:"Product not found."});
   const old=rows[i],name=String(req.body.name||old.name).trim(),slug=cleanSlug(req.body.slug||old.slug),price=Number(req.body.price??old.price);
   if(rows.some(p=>Number(p.id)!==id&&p.slug===slug))return res.status(409).json({message:"Slug already exists."});
@@ -676,11 +835,17 @@ app.put("/api/admin/products/:id",requireAdmin,requireAdminEdit,requireCsrf,uplo
   if(Array.isArray(removePreviews)&&removePreviews.length){
     previewImages=previewImages.filter(url=>!removePreviews.includes(url));
   }
-  const newPreviewUrls=(req.files?.previewImages||[]).map(f=>`/uploads/${f.filename}`);
-  previewImages=[...previewImages,...newPreviewUrls].slice(0,12);
+  try{
+    const imageFile=req.files?.image?.[0]||null;
+    const previewFiles=req.files?.previewImages||[];
+    if(imageFile)await persistDiskUpload(imageFile);
+    for(const f of previewFiles)await persistDiskUpload(f);
+    const newPreviewUrls=previewFiles.map(f=>`/uploads/${f.filename}`);
+    previewImages=[...previewImages,...newPreviewUrls].slice(0,12);
 
-  rows[i]={...old,name,slug,tag:String(req.body.tag??old.tag).trim().slice(0,30),description:String(req.body.description??old.description).trim(),price,image:req.files?.image?.[0]?`/uploads/${req.files.image[0].filename}`:old.image,previewImages,active:String(req.body.active??(old.active?"1":"0"))==="1",sortOrder:Number(req.body.sortOrder??old.sortOrder??0),productType,servicePricing};
-  saveProducts(rows);res.json(rows[i])
+    rows[i]={...old,name,slug,tag:String(req.body.tag??old.tag).trim().slice(0,30),description:String(req.body.description??old.description).trim(),price,image:imageFile?`/uploads/${imageFile.filename}`:old.image,previewImages,active:String(req.body.active??(old.active?"1":"0"))==="1",sortOrder:Number(req.body.sortOrder??old.sortOrder??0),productType,servicePricing};
+    saveProducts(rows);res.json(rows[i])
+  }catch(e){console.error("[PRODUCT UPDATE]",e);res.status(500).json({message:"Could not persist product image/data."})}
 });
 
 app.patch("/api/admin/products/:id/visibility",requireAdmin,requireAdminEdit,requireCsrf,(req,res)=>{
@@ -800,7 +965,7 @@ const MPK=process.env.GEIDEA_MERCHANT_PUBLIC_KEY||"",APIP=process.env.GEIDEA_API
 function ts(){const d=new Date(),p=n=>String(n).padStart(2,"0");return `${d.getUTCFullYear()}/${p(d.getUTCMonth()+1)}/${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`}
 function sig(amount,currency,ref,timestamp){return crypto.createHmac("sha256",APIP).update(`${MPK}${Number(amount).toFixed(2)}${currency}${ref}${timestamp}`).digest("base64")}
 async function geidea(amount,ref,orderItems){const timestamp=ts(),body={amount:Number(amount),currency:"SAR",timestamp,merchantReferenceId:ref,signature:sig(amount,"SAR",ref,timestamp),paymentOperation:"Pay",language:"en",callbackUrl:`${BASE}/api/payment/callback`,returnUrl:`${BASE}/payment-success`,expressCheckouts:[{wallet:"apple-pay",label:"Apple Pay"}],order:{orderItems}},auth=Buffer.from(`${MPK}:${APIP}`).toString("base64");const r=await fetch(GEIDEA,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json","Authorization":`Basic ${auth}`},body:JSON.stringify(body)});return {r,d:await r.json().catch(()=>({}))}}
-app.post("/api/checkout/bank-transfer",requireCustomerApi,receiptUpload.single("receipt"),(req,res)=>{
+app.post("/api/checkout/bank-transfer",requireCustomerApi,receiptUpload.single("receipt"),async(req,res)=>{
   console.log(`[BANK TRANSFER] request received | file=${req.file?.originalname||"none"} | type=${req.file?.mimetype||"none"} | size=${req.file?.size||0}`);
   try{
     if(!req.file)return res.status(400).json({message:"Please attach your payment receipt."});
@@ -827,6 +992,7 @@ app.post("/api/checkout/bank-transfer",requireCustomerApi,receiptUpload.single("
     const filename=`${Date.now()}-${crypto.randomBytes(10).toString("hex")}${ext}`;
     fs.mkdirSync(RECEIPT_DIR,{recursive:true});
     fs.writeFileSync(path.join(RECEIPT_DIR,filename),req.file.buffer);
+    await persistBufferUpload(`receipts/${filename}`,req.file.buffer,req.file.mimetype);
 
     const logs=read(RECEIPT_LOGS,[]);
     const id=nextId(logs),orderNumber=`ES-${String(id).padStart(5,"0")}`;
@@ -934,10 +1100,21 @@ app.use((err,req,res,next)=>{
 });
 
 app.use((_req,res)=>res.status(404).send("Not found"));
-app.listen(PORT,async()=>{
-  console.log(`Eleven Store v6.4.6 running: http://localhost:${PORT}`);
-  console.log(`Admin: http://localhost:${PORT}/admin`);
-  const roleCheck=await checkDiscordCustomerRoleConfig();
-  if(roleCheck.ok)console.log(`[DISCORD CUSTOMER ROLE] ready | bot=${roleCheck.botUsername} | role=${roleCheck.roleName}`);
-  else console.warn(`[DISCORD CUSTOMER ROLE] not ready | ${roleCheck.reason||'Check Render Environment and Discord role hierarchy'}`);
-});
+
+async function startServer(){
+  try{
+    await bootstrapPersistentState();
+  }catch(e){
+    console.error("[PERSISTENCE] Startup aborted to protect store data:",e.message||e);
+    process.exit(1);
+  }
+  app.listen(PORT,async()=>{
+    console.log(`Eleven Store v6.4.6 persistent running: http://localhost:${PORT}`);
+    console.log(`Admin: http://localhost:${PORT}/admin`);
+    console.log(`[PERSISTENCE] ${SUPABASE_ENABLED?"Supabase enabled":"LOCAL ONLY - NOT SAFE ON RENDER"}`);
+    const roleCheck=await checkDiscordCustomerRoleConfig();
+    if(roleCheck.ok)console.log(`[DISCORD CUSTOMER ROLE] ready | bot=${roleCheck.botUsername} | role=${roleCheck.roleName}`);
+    else console.warn(`[DISCORD CUSTOMER ROLE] not ready | ${roleCheck.reason||'Check Render Environment and Discord role hierarchy'}`);
+  });
+}
+startServer();
