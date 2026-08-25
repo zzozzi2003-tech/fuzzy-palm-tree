@@ -474,8 +474,11 @@ function injectSocialMeta(html,{title,description,image,url,type="website"}){
   const safeDesc=escapeMeta(description||"Premium FiveM scripts and files from Eleven Store.");
   const safeImage=escapeMeta(image||"");
   const safeUrl=escapeMeta(url||"");
-  const tags=`\n<meta property="og:type" content="${escapeMeta(type)}">\n<meta property="og:site_name" content="Eleven Store">\n<meta property="og:title" content="${safeTitle}">\n<meta property="og:description" content="${safeDesc}">\n<meta property="og:url" content="${safeUrl}">\n<meta property="og:image" content="${safeImage}">\n<meta property="og:image:secure_url" content="${safeImage}">\n<meta property="og:image:alt" content="${safeTitle}">\n<meta name="twitter:card" content="summary_large_image">\n<meta name="twitter:title" content="${safeTitle}">\n<meta name="twitter:description" content="${safeDesc}">\n<meta name="twitter:image" content="${safeImage}">\n<meta name="theme-color" content="#55bdf4">\n`;
-  return clean.includes("</head>")?clean.replace("</head>",tags+"</head>"):tags+clean;
+  // Keep preview metadata at the very beginning of <head>. Some link-preview
+  // crawlers only inspect the first part of a document before giving up.
+  const tags=`\n<meta charset="utf-8">\n<meta property="og:type" content="${escapeMeta(type)}">\n<meta property="og:site_name" content="Eleven Store">\n<meta property="og:title" content="${safeTitle}">\n<meta property="og:description" content="${safeDesc}">\n<meta property="og:url" content="${safeUrl}">\n<meta property="og:image" content="${safeImage}">\n<meta property="og:image:secure_url" content="${safeImage}">\n<meta property="og:image:alt" content="${safeTitle}">\n<meta name="twitter:card" content="summary_large_image">\n<meta name="twitter:title" content="${safeTitle}">\n<meta name="twitter:description" content="${safeDesc}">\n<meta name="twitter:image" content="${safeImage}">\n<meta name="theme-color" content="#55bdf4">\n`;
+  if(/<head(?:\s[^>]*)?>/i.test(clean)) return clean.replace(/<head(\s[^>]*)?>/i,m=>m+tags);
+  return tags+clean;
 }
 function sendPageWithPreview(req,res,fileName,meta){
   try{
@@ -506,12 +509,66 @@ function normalizedProductSlug(value){
 function prettySlug(value){
   return normalizedProductSlug(value).split("-").filter(Boolean).map(x=>x.charAt(0).toUpperCase()+x.slice(1)).join(" ")||"Product";
 }
-app.get("/product/:slug",(req,res)=>{
-  const slug=String(req.params.slug||"").trim();
+function productBySlug(slug){
   const key=normalizedProductSlug(slug);
   const rows=products();
-  const product=rows.find(p=>normalizedProductSlug(p?.slug)===key)
+  return rows.find(p=>normalizedProductSlug(p?.slug)===key)
     || rows.find(p=>normalizedProductSlug(p?.name).replace(/\s+/g,"-")===key);
+}
+async function sendPreviewImage(req,res){
+  try{
+    const product=productBySlug(req.params.slug);
+    const candidate=String(product?.image||(Array.isArray(product?.previewImages)&&product.previewImages[0])||"/assets/discord-preview.png").trim();
+    res.set("Cache-Control","public, max-age=3600");
+    res.set("Access-Control-Allow-Origin","*");
+
+    if(candidate.startsWith("/uploads/")){
+      const objectPath=candidate.replace(/^\/uploads\//,"");
+      if(SUPABASE_ENABLED){
+        const r=await fetch(storageObjectUrl(objectPath),{headers:sbHeaders()});
+        if(r.ok){
+          const buf=Buffer.from(await r.arrayBuffer());
+          const type=r.headers.get("content-type")||"image/png";
+          res.set("Content-Type",type);
+          res.set("Content-Length",String(buf.length));
+          return res.status(200).send(buf);
+        }
+      }
+      const local=path.join(UPLOADS,objectPath);
+      if(fs.existsSync(local)) return res.sendFile(local);
+    }
+
+    if(candidate.startsWith("/assets/")){
+      const local=path.join(PUBLIC,candidate.replace(/^\//,""));
+      if(fs.existsSync(local)) return res.sendFile(local);
+    }
+
+    if(/^https?:\/\//i.test(candidate)){
+      const r=await fetch(candidate,{headers:{"User-Agent":"ElevenStorePreview/1.0"}});
+      if(r.ok){
+        const buf=Buffer.from(await r.arrayBuffer());
+        const type=r.headers.get("content-type")||"image/png";
+        res.set("Content-Type",type);
+        res.set("Content-Length",String(buf.length));
+        return res.status(200).send(buf);
+      }
+    }
+
+    const fallback=path.join(PUBLIC,"assets","discord-preview.png");
+    if(fs.existsSync(fallback)) return res.sendFile(fallback);
+    return res.status(404).end();
+  }catch(e){
+    console.error("[LINK PREVIEW] image proxy failed:",e.message||e);
+    const fallback=path.join(PUBLIC,"assets","discord-preview.png");
+    if(fs.existsSync(fallback)) return res.sendFile(fallback);
+    return res.status(404).end();
+  }
+}
+app.get("/discord/product-image/:slug",sendPreviewImage);
+
+app.get("/product/:slug",(req,res)=>{
+  const slug=String(req.params.slug||"").trim();
+  const product=productBySlug(slug);
 
   // Always return HTTP 200 with OG tags so Discord can build an embed.
   const name=String(product?.name||prettySlug(slug)).trim();
@@ -520,7 +577,7 @@ app.get("/product/:slug",(req,res)=>{
   const bodyDescription=String(product?.description||"Premium FiveM script available on Eleven Store.")
     .replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim().slice(0,220);
   const description=priceText?`${priceText} • ${bodyDescription}`:bodyDescription;
-  const candidateImage=product?.image||(Array.isArray(product?.previewImages)&&product.previewImages[0])||"/assets/discord-preview.png";
+  const previewImageUrl=`${requestOrigin(req)}/discord/product-image/${encodeURIComponent(slug)}`;
 
   res.status(200);
   res.set("Cache-Control","public, max-age=0, must-revalidate");
@@ -528,7 +585,7 @@ app.get("/product/:slug",(req,res)=>{
   sendPageWithPreview(req,res,"product.html",{
     title:name,
     description,
-    image:absolutePreviewUrl(req,candidateImage),
+    image:previewImageUrl,
     url:`${requestOrigin(req)}/product/${encodeURIComponent(slug)}`,
     type:"product"
   });
