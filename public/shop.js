@@ -49,11 +49,7 @@ function render(){
   const root=$('#products'),r=rows();
   root.innerHTML=r.map(p=>{
     const rating=Number(p.rating?.average||0),reviews=Number(p.rating?.count||0),isService=p.productType==='programming_service',isFree=price(p)===0;
-    return `<article class="product-card">
-      <a class="product-image" href="${productUrl(p)}">
-        <img class="${p.image?'':'fallback'}" src="${p.image||'/assets/eleven-logo.png'}" alt="${String(p.name).replaceAll('"','&quot;')}">
-        <span class="product-hover-label">${lang==='ar'?'عرض المنتج':'View product'}</span>
-      </a>
+    return `<article class="product-card no-card-image">
       <div class="product-body">
         <div class="product-topline"><span class="product-tag">${p.tag||'ELEVEN'}</span><span class="product-type">${productTypeLabel(p)}</span></div>
         <div class="product-rating">${starLine(rating)}<span>${reviews?`${rating.toFixed(1)} (${reviews})`:(lang==='ar'?'بدون تقييم':'No ratings yet')}</span></div>
