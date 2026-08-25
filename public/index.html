@@ -20,10 +20,11 @@
       <a href="#products" data-filter="all">جميع المنتجات</a>
     </nav>
     <div class="header-actions">
+      <a class="orders-link discord-top-link" href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener">DISCORD</a>
       <a class="orders-link account-login" id="customerLogin" href="/login">Login</a>
       <button class="icon-button ghost-icon" id="searchButton" aria-label="Search">⌕</button>
-      <button class="icon-button cart-button" id="cartButton" aria-label="Cart">🛍<b id="cartBadge">0</b></button>
-      <a class="orders-link" href="/orders">طلباتي</a>
+      <button class="icon-button cart-button text-icon" id="cartButton" aria-label="Cart"><span>CART</span><b id="cartBadge">0</b></button>
+      <a class="orders-link customer-orders-link" href="/orders">طلباتي</a>
     </div>
   </div>
 </header>
@@ -59,7 +60,7 @@
 
 <aside class="floating-tools"><div class="lang-wrap"><button id="langBtn" class="float-pill"><span class="lang-dot">AR</span><span>العربية</span><i>⌃</i></button><div id="langMenu" class="lang-menu hidden"><button data-lang="ar">العربية</button><button data-lang="en">English</button></div></div></aside>
 
-<div id="cartModal" class="cart-modal hidden"><div class="cart-backdrop" data-cart-close></div><section class="cart-dialog"><header class="cart-header"><button class="cart-close" data-cart-close>×</button><div><h2 id="cartTitle">سلة التسوق</h2><small id="cartCountText">0 عنصر</small></div><span>🛍</span></header><div class="cart-layout"><aside class="cart-summary-panel"><label id="couponLabel">كود الخصم</label><div class="coupon-row"><input placeholder="كود الخصم"><button id="couponApply">تطبيق</button></div><h3 id="summaryTitle">ملخص الطلب</h3><div class="summary-box"><div><span id="subtotalLabel">المجموع الفرعي</span><b id="cartSubtotal">0 SAR</b></div><div class="total"><span id="totalLabel">المجموع الكلي</span><b id="cartTotal">0 SAR</b></div></div><button id="checkoutButton" class="checkout-button">متابعة عملية الدفع</button></aside><div id="cartItems" class="cart-items"></div></div></section></div>
+<div id="cartModal" class="cart-modal hidden"><div class="cart-backdrop" data-cart-close></div><section class="cart-dialog"><header class="cart-header"><button class="cart-close" data-cart-close>×</button><div><h2 id="cartTitle">سلة التسوق</h2><small id="cartCountText">0 عنصر</small></div><span class="cart-header-text">CART</span></header><div class="cart-layout"><aside class="cart-summary-panel"><label id="couponLabel">كود الخصم</label><div class="coupon-row"><input id="couponInput" maxlength="32" placeholder="كود الخصم"><button id="couponApply">تطبيق</button></div><small id="couponMessage" class="coupon-message"></small><h3 id="summaryTitle">ملخص الطلب</h3><div class="summary-box"><div><span id="subtotalLabel">المجموع الفرعي</span><b id="cartSubtotal">0 SAR</b></div><div id="cartDiscountRow" class="hidden"><span>الخصم</span><b id="cartDiscount">0 SAR</b></div><div class="total"><span id="totalLabel">المجموع الكلي</span><b id="cartTotal">0 SAR</b></div></div><button id="checkoutButton" class="checkout-button">متابعة عملية الدفع</button></aside><div id="cartItems" class="cart-items"></div></div></section></div>
 
 <script src="/store-config.js"></script><script src="/shop.js"></script><script src="/support-chat.js"></script>
 </body></html>

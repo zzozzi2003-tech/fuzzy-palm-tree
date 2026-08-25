@@ -21,3 +21,8 @@ Support workflow:
 - Admin opens Admin > Support Chat.
 - Select the conversation and reply.
 - Replies appear automatically in the customer's chat window.
+
+
+--- v6.3.4 ---
+See UPDATE-NOTES-v6.3.4.txt for admin access, coupon system, order product details and UI changes.
+IMPORTANT: Keep your live data/*.json files when they contain newer production data.

@@ -17,7 +17,7 @@
       <span class="brand-name"><b>ELEVEN</b><small>STORE</small></span>
     </a>
     <div class="header-center"><span class="secure-dot"></span> Secure checkout</div>
-    <div class="header-total"><small>Order total</small><strong id="topTotal">SAR 0</strong></div>
+    <div class="checkout-header-actions"><a class="top-discord-link" href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener">DISCORD</a><div class="header-total"><small>Order total</small><strong id="topTotal">SAR 0</strong></div></div>
   </div>
 </header>
 
@@ -89,9 +89,14 @@
     </section>
 
     <aside class="order-summary-card">
-      <div class="summary-head"><div><span>ORDER SUMMARY</span><h2>Your cart</h2></div><div class="summary-bag">🛍</div></div>
+      <div class="summary-head"><div><span>ORDER SUMMARY</span><h2>Your cart</h2></div><div class="summary-bag">CART</div></div>
       <div id="orderLines" class="order-lines"></div>
-      <div class="summary-note"><span>✓</span><p>Products in your existing store data are preserved. Checkout only uses the current cart.</p></div>
+      <div class="checkout-coupon">
+        <label for="checkoutCoupon">Coupon code</label>
+        <div class="checkout-coupon-row"><input id="checkoutCoupon" maxlength="32" placeholder="Enter coupon"><button id="applyCheckoutCoupon" type="button">Apply</button></div>
+        <small id="checkoutCouponMessage"></small>
+      </div>
+      <div class="summary-note"><span class="html-status-dot"></span><p>Products in your existing store data are preserved. Checkout only uses the current cart.</p></div>
       <button type="button" data-open-support class="support-link">Need help? Talk to support</button>
     </aside>
   </div>

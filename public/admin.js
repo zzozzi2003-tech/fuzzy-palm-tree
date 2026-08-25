@@ -1,5 +1,5 @@
 const $=s=>document.querySelector(s);
-let products=[],editing=null,csrf="";
+let products=[],editing=null,csrf="",adminRole="none",adminCanEdit=false;
 
 async function api(url,opts={}){
   opts.headers=opts.headers||{};
@@ -16,25 +16,35 @@ async function api(url,opts={}){
 
 async function boot(){
   const s=await api("/api/admin/session");
-  if(s.authenticated){
-    csrf=s.csrfToken||"";
-    await showDashboard();
-  }else showLogin();
+  if(s.authenticated){csrf=s.csrfToken||"";adminRole=s.role||"staff";adminCanEdit=!!s.canEdit;await showDashboard(s);return}
+  const access=await api("/api/admin/access-status").catch(()=>({connected:false,status:"none"}));
+  if(access.authenticated){csrf=access.csrfToken||"";adminRole="staff";adminCanEdit=!!access.canEdit;await showDashboard();return}
+  showLogin(access);
 }
 
-function showLogin(){
+function showLogin(access={}){
   $("#loginView").classList.remove("hidden");
   $("#dashboard").classList.add("hidden");
   $("#logout").classList.add("hidden");
+  const box=$("#staffAccessStatus");
+  if(access.connected){
+    const name=access.user?.globalName||access.user?.username||"Discord user";
+    const text=access.status==="pending"?`@${name}: access request is waiting for owner approval.`:access.status==="denied"?`@${name}: access is currently denied by the owner.`:`@${name}: sign in request is registered.`;
+    box.textContent=text;box.classList.remove("hidden");
+  }else{box.classList.add("hidden");box.textContent=""}
 }
-async function showDashboard(){
+async function showDashboard(sessionData=null){
   $("#loginView").classList.add("hidden");
   $("#dashboard").classList.remove("hidden");
   $("#logout").classList.remove("hidden");
-  const s=await api("/api/admin/session");
-  csrf=s.csrfToken||csrf;
+  const s=sessionData||await api("/api/admin/session");
+  csrf=s.csrfToken||csrf;adminRole=s.role||adminRole;adminCanEdit=!!s.canEdit;
+  $("#showAdminAccess").classList.toggle("hidden",adminRole!=="owner");
+  $("#adminIdentity").textContent=adminRole==="owner"?"OWNER · FULL ACCESS":`${s.adminUser?.globalName||s.adminUser?.username||"STAFF"} · ${adminCanEdit?"EDIT ACCESS":"VIEW ONLY"}`;
+  $("#newProduct").classList.toggle("hidden",!adminCanEdit);
   await load();
   loadSupportThreads(false).catch(()=>{});
+  if(adminRole==="owner")loadAdminAccess(true).catch(()=>{});
 }
 
 $("#loginForm").addEventListener("submit",async e=>{
@@ -46,7 +56,7 @@ $("#loginForm").addEventListener("submit",async e=>{
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({password:$("#password").value})
     });
-    csrf=d.csrfToken||csrf;
+    csrf=d.csrfToken||csrf;adminRole=d.role||"owner";adminCanEdit=true;
     $("#password").value="";
     await showDashboard();
   }catch(err){$("#loginMessage").textContent=err.message}
@@ -75,9 +85,7 @@ async function load(){
       <div class="admin-price">${p.productType==="programming_service"?"SERVICE":p.productType==="premium_subscription"?"PREMIUM":`SAR ${Number(p.price).toLocaleString("en-US",{maximumFractionDigits:2})}`}</div>
       <span class="status ${p.active?"active-status":"hidden-status"}">${p.active?"ACTIVE":"HIDDEN"}</span>
       <div class="actions">
-        <button type="button" class="action-btn toggle-btn" data-action="toggle" data-id="${p.id}">${p.active?"Hide":"Show"}</button>
-        <button type="button" class="action-btn" data-action="edit" data-id="${p.id}">Edit</button>
-        <button type="button" class="action-btn danger" data-action="delete" data-id="${p.id}">Delete</button>
+        ${adminCanEdit?`<button type="button" class="action-btn toggle-btn" data-action="toggle" data-id="${p.id}">${p.active?"Hide":"Show"}</button><button type="button" class="action-btn" data-action="edit" data-id="${p.id}">Edit</button><button type="button" class="action-btn danger" data-action="delete" data-id="${p.id}">Delete</button>`:'<span class="view-only-label">View only</span>'}
       </div>
     </article>`).join("")||'<div class="empty-admin">No products yet.</div>';
 }
@@ -250,12 +258,18 @@ async function loadOrders(filter=currentOrderFilter){
         <p>${esc(o.createdAt||"")}</p>
       </div>
       <div class="log-total">SAR ${Number(o.amount||0).toLocaleString("en-US",{maximumFractionDigits:2})}</div>
+      <div class="order-products">
+        <span class="order-products-title">PRODUCTS</span>
+        ${(o.items||[]).map(i=>`<div class="admin-order-item"><strong>${esc(i.name||`Product #${i.productId||''}`)}</strong><span>Qty ${Number(i.qty||1)} × SAR ${Number(i.unitPrice||0).toLocaleString("en-US",{maximumFractionDigits:2})}</span><b>SAR ${(Number(i.unitPrice||0)*Number(i.qty||1)).toLocaleString("en-US",{maximumFractionDigits:2})}</b></div>`).join('')||'<div class="admin-order-item"><strong>No product details saved</strong></div>'}
+        ${Number(o.discount||0)>0?`<div class="admin-order-discount"><span>Coupon ${esc(o.coupon?.code||'')}</span><b>- SAR ${Number(o.discount||0).toLocaleString("en-US",{maximumFractionDigits:2})}</b></div>`:''}
+      </div>
       <div class="actions">
         ${o.receiptUrl?`<a class="action-btn" href="${esc(o.receiptUrl)}" target="_blank" rel="noopener">Receipt</a>`:""}
-        ${o.status!=="delivered"?`<button class="action-btn" data-order-action="delivered" data-order-id="${o.id}">Mark Delivered</button>`:""}
+        ${o.status!=="delivered"&&adminCanEdit?`<button class="action-btn" data-order-action="delivered" data-order-id="${o.id}">Mark Delivered</button>`:""}
       </div>
     </article>`).join("")||'<div class="empty-admin">No orders in this section.</div>';
   $("#ordersSection").classList.remove("hidden");
+  $("#couponsSection").classList.add("hidden");$("#adminAccessSection").classList.add("hidden");
   $("#premiumSection").classList.add("hidden");
   $("#supportSection").classList.add("hidden");
   $("#productList").classList.add("hidden");
@@ -287,7 +301,7 @@ async function loadNotificationHistory(){
 }
 $("#showNotifications").addEventListener("click",async()=>{
   clearInterval(supportPoll);supportPoll=null;
-  $("#notificationsSection").classList.remove("hidden");$("#premiumSection").classList.add("hidden");$("#supportSection").classList.add("hidden");$("#productList").classList.add("hidden");$("#ordersSection").classList.add("hidden");$("#receiptLogsSection").classList.add("hidden");await loadNotificationHistory();
+  $("#notificationsSection").classList.remove("hidden");$("#couponsSection").classList.add("hidden");$("#adminAccessSection").classList.add("hidden");$("#premiumSection").classList.add("hidden");$("#supportSection").classList.add("hidden");$("#productList").classList.add("hidden");$("#ordersSection").classList.add("hidden");$("#receiptLogsSection").classList.add("hidden");await loadNotificationHistory();
 });
 $("#closeNotifications").addEventListener("click",()=>{$("#notificationsSection").classList.add("hidden");$("#productList").classList.remove("hidden")});
 $("#notificationForm").addEventListener("submit",async e=>{
@@ -301,12 +315,40 @@ $("#notificationForm").addEventListener("submit",async e=>{
 async function loadPremiumMembers(){
   clearInterval(supportPoll);supportPoll=null;
   const rows=await api('/api/admin/premium-members');
-  $('#premiumMembers').innerHTML=rows.map(m=>`<article class="premium-member-card"><div class="premium-avatar">P</div><div class="premium-member-main"><span class="status ${m.active?'active-status':'hidden-status'}">${m.active?'PREMIUM ACTIVE':'PREMIUM REVOKED'}</span><h3>${esc(m.globalName||m.username||'Discord Member')}</h3><p>@${esc(m.username||'unknown')} · ${esc(m.discordId)}</p><small>Premium order: ${esc(m.orderNumber||'—')} · ${esc(m.purchasedAt||'')}</small></div><button class="action-btn ${m.active?'danger':''}" data-premium-id="${esc(m.discordId)}" data-premium-active="${m.active?'0':'1'}">${m.active?'Revoke Premium':'Restore Premium'}</button></article>`).join('')||'<div class="empty-admin">No Premium members yet.</div>';
-  $('#premiumSection').classList.remove('hidden');$('#supportSection').classList.add('hidden');$('#notificationsSection').classList.add('hidden');$('#ordersSection').classList.add('hidden');$('#receiptLogsSection').classList.add('hidden');$('#productList').classList.add('hidden');
+  $('#premiumMembers').innerHTML=rows.map(m=>`<article class="premium-member-card"><div class="premium-avatar">P</div><div class="premium-member-main"><span class="status ${m.active?'active-status':'hidden-status'}">${m.active?'PREMIUM ACTIVE':'PREMIUM REVOKED'}</span><h3>${esc(m.globalName||m.username||'Discord Member')}</h3><p>@${esc(m.username||'unknown')} · ${esc(m.discordId)}</p><small>Premium order: ${esc(m.orderNumber||'—')} · ${esc(m.purchasedAt||'')}</small></div>${adminCanEdit?`<button class="action-btn ${m.active?'danger':''}" data-premium-id="${esc(m.discordId)}" data-premium-active="${m.active?'0':'1'}">${m.active?'Revoke Premium':'Restore Premium'}</button>`:'<span class="view-only-label">View only</span>'}</article>`).join('')||'<div class="empty-admin">No Premium members yet.</div>';
+  $('#premiumSection').classList.remove('hidden');$('#couponsSection').classList.add('hidden');$('#adminAccessSection').classList.add('hidden');$('#supportSection').classList.add('hidden');$('#notificationsSection').classList.add('hidden');$('#ordersSection').classList.add('hidden');$('#receiptLogsSection').classList.add('hidden');$('#productList').classList.add('hidden');
 }
 $('#showPremium').addEventListener('click',()=>loadPremiumMembers().catch(e=>alert(e.message)));
 $('#closePremium').addEventListener('click',()=>{$('#premiumSection').classList.add('hidden');$('#productList').classList.remove('hidden')});
 $('#premiumMembers').addEventListener('click',async e=>{const b=e.target.closest('[data-premium-id]');if(!b)return;const active=b.dataset.premiumActive==='1';const label=active?'restore Premium for':'revoke Premium from';if(!confirm(`Are you sure you want to ${label} this member?`))return;b.disabled=true;try{await api(`/api/admin/premium-members/${encodeURIComponent(b.dataset.premiumId)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({active})});await loadPremiumMembers()}catch(err){alert(err.message)}finally{b.disabled=false}});
+
+// Coupon management
+let coupons=[];
+function couponSelectedIds(){return Array.from(document.querySelectorAll('#couponProducts input:checked')).map(x=>Number(x.value))}
+function renderCouponProductOptions(selected=[]){const set=new Set((selected||[]).map(Number));$('#couponProducts').innerHTML=products.map(p=>`<label class="coupon-product-check"><input type="checkbox" value="${p.id}" ${set.has(Number(p.id))?'checked':''}><span>${esc(p.name)}</span></label>`).join('')||'<small>No products available.</small>'}
+function resetCouponForm(){ $('#couponId').value='';$('#couponCode').value='';$('#couponType').value='percent';$('#couponValue').value='';$('#couponActive').checked=true;$('#cancelCouponEdit').classList.add('hidden');$('#couponMessage').textContent='';renderCouponProductOptions([]) }
+async function loadCoupons(){
+  clearInterval(supportPoll);supportPoll=null;coupons=await api('/api/admin/coupons');renderCouponProductOptions([]);
+  $('#couponList').innerHTML=coupons.map(c=>{const names=(c.productIds||[]).map(id=>products.find(p=>Number(p.id)===Number(id))?.name).filter(Boolean);return `<article class="coupon-card"><div><span class="status ${c.active?'active-status':'hidden-status'}">${c.active?'ACTIVE':'INACTIVE'}</span><h3>${esc(c.code)}</h3><p>${c.type==='percent'?`${Number(c.value)}%`:`SAR ${Number(c.value).toLocaleString('en-US')}`} · ${names.length?esc(names.join(', ')):'All products'}</p></div><div class="actions">${adminCanEdit?`<button class="action-btn" data-coupon-edit="${c.id}">Edit</button><button class="action-btn danger" data-coupon-delete="${c.id}">Delete</button>`:'<span class="view-only-label">View only</span>'}</div></article>`}).join('')||'<div class="empty-admin">No coupons yet.</div>';
+  $('#couponsSection').classList.remove('hidden');$('#adminAccessSection').classList.add('hidden');$('#premiumSection').classList.add('hidden');$('#supportSection').classList.add('hidden');$('#notificationsSection').classList.add('hidden');$('#ordersSection').classList.add('hidden');$('#receiptLogsSection').classList.add('hidden');$('#productList').classList.add('hidden');
+  $('#couponForm').classList.toggle('readonly-form',!adminCanEdit);Array.from($('#couponForm').querySelectorAll('input,select,button')).forEach(el=>{if(el.id!=='cancelCouponEdit')el.disabled=!adminCanEdit});
+}
+$('#showCoupons').addEventListener('click',()=>loadCoupons().catch(e=>alert(e.message)));
+$('#closeCoupons').addEventListener('click',()=>{$('#couponsSection').classList.add('hidden');$('#productList').classList.remove('hidden')});
+$('#cancelCouponEdit').addEventListener('click',resetCouponForm);
+$('#couponForm').addEventListener('submit',async e=>{e.preventDefault();if(!adminCanEdit)return;const id=$('#couponId').value;const body={code:$('#couponCode').value,type:$('#couponType').value,value:Number($('#couponValue').value),active:$('#couponActive').checked,productIds:couponSelectedIds()};$('#saveCoupon').disabled=true;try{await api(id?`/api/admin/coupons/${id}`:'/api/admin/coupons',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});resetCouponForm();await loadCoupons()}catch(err){$('#couponMessage').textContent=err.message}finally{$('#saveCoupon').disabled=false}});
+$('#couponList').addEventListener('click',async e=>{const edit=e.target.closest('[data-coupon-edit]'),del=e.target.closest('[data-coupon-delete]');if(edit){const c=coupons.find(x=>Number(x.id)===Number(edit.dataset.couponEdit));if(!c)return;$('#couponId').value=c.id;$('#couponCode').value=c.code;$('#couponType').value=c.type;$('#couponValue').value=c.value;$('#couponActive').checked=c.active!==false;renderCouponProductOptions(c.productIds||[]);$('#cancelCouponEdit').classList.remove('hidden');$('#couponForm').scrollIntoView({behavior:'smooth'});return}if(del){if(!confirm('Delete this coupon?'))return;await api(`/api/admin/coupons/${del.dataset.couponDelete}`,{method:'DELETE'});await loadCoupons()}});
+
+// Owner-only staff access management
+async function loadAdminAccess(background=false){
+  if(adminRole!=='owner')return;const rows=await api('/api/admin/admin-access');const pending=rows.filter(x=>x.status==='pending').length;$('#adminPendingBadge').textContent=pending;$('#adminPendingBadge').classList.toggle('hidden',pending===0);
+  $('#adminAccessList').innerHTML=rows.map(a=>`<article class="admin-access-card"><div class="admin-access-avatar">${esc((a.globalName||a.username||'A').slice(0,1).toUpperCase())}</div><div class="admin-access-main"><span class="status ${a.status==='approved'?'active-status':a.status==='denied'?'hidden-status':'pending-status'}">${esc((a.status||'pending').toUpperCase())}</span><h3>${esc(a.globalName||a.username||'Discord Admin')}</h3><p>@${esc(a.username||'unknown')} · ${esc(a.discordId)}</p><small>Last login: ${esc(a.lastLoginAt||a.requestedAt||'')}</small></div><div class="admin-access-actions">${a.status!=='approved'?`<button class="action-btn" data-access-status="approved" data-access-id="${esc(a.discordId)}">Approve Access</button>`:`<button class="action-btn danger" data-access-status="denied" data-access-id="${esc(a.discordId)}">Disable Access</button>`}<button class="action-btn ${a.canEdit?'toggle-btn':''}" data-access-edit="${a.canEdit?'0':'1'}" data-access-id="${esc(a.discordId)}">${a.canEdit?'Disable Editing':'Allow Editing'}</button></div></article>`).join('')||'<div class="empty-admin">No staff login requests yet.</div>';
+  if(!background){$('#adminAccessSection').classList.remove('hidden');$('#couponsSection').classList.add('hidden');$('#premiumSection').classList.add('hidden');$('#supportSection').classList.add('hidden');$('#notificationsSection').classList.add('hidden');$('#ordersSection').classList.add('hidden');$('#receiptLogsSection').classList.add('hidden');$('#productList').classList.add('hidden')}
+}
+$('#showAdminAccess').addEventListener('click',()=>loadAdminAccess(false).catch(e=>alert(e.message)));
+$('#closeAdminAccess').addEventListener('click',()=>{$('#adminAccessSection').classList.add('hidden');$('#productList').classList.remove('hidden')});
+$('#adminAccessList').addEventListener('click',async e=>{const status=e.target.closest('[data-access-status]'),edit=e.target.closest('[data-access-edit]');const b=status||edit;if(!b)return;const body=status?{status:status.dataset.accessStatus}:{canEdit:edit.dataset.accessEdit==='1'};await api(`/api/admin/admin-access/${encodeURIComponent(b.dataset.accessId)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});await loadAdminAccess(false)});
+setInterval(()=>{if(adminRole==='owner'&&!$('#dashboard').classList.contains('hidden'))loadAdminAccess(true).catch(()=>{})},10000);
 
 // Technical support inbox
 let activeSupportId="",supportPoll=null;
@@ -326,13 +368,15 @@ async function loadSupportConversation(id,refreshList=true){
   $("#supportConversationHead").innerHTML=`<div><b>${esc(t.customer?.name||'Visitor')}</b><small>${esc(t.customer?.discordId||'Guest session')}${discord}</small></div><button class="support-close-btn" data-support-status="${t.status==='closed'?'open':'closed'}">${t.status==='closed'?'Reopen':'Close conversation'}</button>`;
   $("#supportMessages").innerHTML=(t.messages||[]).map(m=>`<div class="admin-chat-msg ${m.from==='support'?'support':'customer'}">${esc(m.message)}<small>${m.from==='support'?'Support':'Customer'} · ${supportDate(m.createdAt)}</small></div>`).join("")||'<div class="empty-admin">No messages yet.</div>';
   $("#supportMessages").scrollTop=$("#supportMessages").scrollHeight;
-  $("#supportReply").disabled=false;$("#supportReplyButton").disabled=false;
+  $("#supportReply").disabled=!adminCanEdit;$("#supportReplyButton").disabled=!adminCanEdit;
   document.querySelectorAll(".support-thread").forEach(x=>x.classList.toggle("active",x.dataset.supportId===id));
   if(refreshList)await loadSupportThreads(false);
 }
-$("#showSupport").addEventListener("click",async()=>{$("#supportSection").classList.remove("hidden");$("#premiumSection").classList.add("hidden");$("#productList").classList.add("hidden");$("#notificationsSection").classList.add("hidden");$("#ordersSection").classList.add("hidden");$("#receiptLogsSection").classList.add("hidden");await loadSupportThreads(false);clearInterval(supportPoll);supportPoll=setInterval(()=>loadSupportThreads(true).catch(()=>{}),4000)});
+$("#showSupport").addEventListener("click",async()=>{$("#supportSection").classList.remove("hidden");$("#couponsSection").classList.add("hidden");$("#adminAccessSection").classList.add("hidden");$("#premiumSection").classList.add("hidden");$("#productList").classList.add("hidden");$("#notificationsSection").classList.add("hidden");$("#ordersSection").classList.add("hidden");$("#receiptLogsSection").classList.add("hidden");await loadSupportThreads(false);clearInterval(supportPoll);supportPoll=setInterval(()=>loadSupportThreads(true).catch(()=>{}),4000)});
 $("#closeSupport").addEventListener("click",()=>{$("#supportSection").classList.add("hidden");$("#productList").classList.remove("hidden");clearInterval(supportPoll);supportPoll=null});
 $("#supportThreadList").addEventListener("click",e=>{const b=e.target.closest("[data-support-id]");if(b)loadSupportConversation(b.dataset.supportId).catch(err=>alert(err.message))});
 $("#supportReplyForm").addEventListener("submit",async e=>{e.preventDefault();if(!activeSupportId)return;const message=$("#supportReply").value.trim();if(!message)return;$("#supportReplyButton").disabled=true;try{await api(`/api/admin/support/${encodeURIComponent(activeSupportId)}/messages`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message})});$("#supportReply").value="";await loadSupportConversation(activeSupportId)}catch(err){alert(err.message)}finally{$("#supportReplyButton").disabled=false}});
 $("#supportConversationHead").addEventListener("click",async e=>{const b=e.target.closest("[data-support-status]");if(!b||!activeSupportId)return;await api(`/api/admin/support/${encodeURIComponent(activeSupportId)}/status`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:b.dataset.supportStatus})});await loadSupportConversation(activeSupportId)});
 setInterval(()=>{if(!$("#dashboard").classList.contains("hidden"))loadSupportThreads(false).catch(()=>{})},15000);
+
+setInterval(async()=>{if(!$('#loginView').classList.contains('hidden')){try{const access=await api('/api/admin/access-status');if(access.authenticated){csrf=access.csrfToken||csrf;adminRole='staff';adminCanEdit=!!access.canEdit;await showDashboard()}else showLogin(access)}catch{}}},5000);

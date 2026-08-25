@@ -21,6 +21,8 @@ const NOTIFICATIONS=path.join(DATA,"notifications.json");
 const PRODUCT_COMMENTS=path.join(DATA,"product-comments.json");
 const SUPPORT_CHATS=path.join(DATA,"support-chats.json");
 const PREMIUM_ACCESS=path.join(DATA,"premium-access.json");
+const COUPONS=path.join(DATA,"coupons.json");
+const ADMIN_ACCESS=path.join(DATA,"admin-access.json");
 const RECEIPT_DIR=path.join(UPLOADS,"receipts");
 fs.mkdirSync(DATA,{recursive:true});fs.mkdirSync(UPLOADS,{recursive:true});fs.mkdirSync(RECEIPT_DIR,{recursive:true});
 
@@ -28,7 +30,7 @@ function read(file,fallback){try{return fs.existsSync(file)?JSON.parse(fs.readFi
 function write(file,data){const tmp=file+".tmp";fs.writeFileSync(tmp,JSON.stringify(data,null,2));fs.renameSync(tmp,file)}
 function products(){return read(PRODUCTS,[])}function saveProducts(v){write(PRODUCTS,v)}function orders(){return read(ORDERS,[])}function saveOrders(v){write(ORDERS,v)}
 function nextId(rows){return rows.reduce((m,x)=>Math.max(m,Number(x.id||0)),0)+1}
-if(!fs.existsSync(PRODUCTS))saveProducts([]);if(!fs.existsSync(ORDERS))saveOrders([]);if(!fs.existsSync(RECEIPT_LOGS))write(RECEIPT_LOGS,[]);if(!fs.existsSync(NOTIFICATIONS))write(NOTIFICATIONS,[]);if(!fs.existsSync(PRODUCT_COMMENTS))write(PRODUCT_COMMENTS,{});if(!fs.existsSync(SUPPORT_CHATS))write(SUPPORT_CHATS,[]);if(!fs.existsSync(PREMIUM_ACCESS))write(PREMIUM_ACCESS,[]);
+if(!fs.existsSync(PRODUCTS))saveProducts([]);if(!fs.existsSync(ORDERS))saveOrders([]);if(!fs.existsSync(RECEIPT_LOGS))write(RECEIPT_LOGS,[]);if(!fs.existsSync(NOTIFICATIONS))write(NOTIFICATIONS,[]);if(!fs.existsSync(PRODUCT_COMMENTS))write(PRODUCT_COMMENTS,{});if(!fs.existsSync(SUPPORT_CHATS))write(SUPPORT_CHATS,[]);if(!fs.existsSync(PREMIUM_ACCESS))write(PREMIUM_ACCESS,[]);if(!fs.existsSync(COUPONS))write(COUPONS,[]);if(!fs.existsSync(ADMIN_ACCESS))write(ADMIN_ACCESS,[]);
 
 app.set("trust proxy",1);
 app.use(helmet({
@@ -84,9 +86,26 @@ const receiptUpload=multer({
 });
 
 
-function isAdmin(req){return req.session?.isAdmin===true}
+function adminAccessRows(){return read(ADMIN_ACCESS,[])}
+function saveAdminAccessRows(rows){write(ADMIN_ACCESS,rows)}
+function adminAccessFor(discordId){return adminAccessRows().find(x=>String(x.discordId||"")===String(discordId||""))||null}
+function registerAdminRequest(user){
+  if(!user?.id)return null;
+  const rows=adminAccessRows(),id=String(user.id),i=rows.findIndex(x=>String(x.discordId||"")===id),now=new Date().toISOString();
+  const base={discordId:id,username:String(user.username||""),globalName:String(user.globalName||""),avatar:String(user.avatar||""),lastLoginAt:now};
+  if(i>=0){rows[i]={...rows[i],...base};if(!rows[i].status)rows[i].status="pending";if(typeof rows[i].canEdit!=="boolean")rows[i].canEdit=false}
+  else rows.push({...base,status:"pending",canEdit:false,requestedAt:now,updatedAt:now});
+  saveAdminAccessRows(rows);
+  return rows[i>=0?i:rows.length-1];
+}
+function isOwner(req){return req.session?.isAdmin===true&&req.session?.adminRole==="owner"}
+function currentStaffAccess(req){const id=req.session?.adminDiscordId||req.session?.discordUser?.id;if(!id)return null;return adminAccessFor(id)}
+function isAdmin(req){if(isOwner(req))return true;const row=currentStaffAccess(req);return req.session?.isAdmin===true&&req.session?.adminRole==="staff"&&row?.status==="approved"}
+function canEditAdmin(req){if(isOwner(req))return true;const row=currentStaffAccess(req);return isAdmin(req)&&row?.canEdit===true}
 function ensureCsrf(req){if(!req.session.csrfToken)req.session.csrfToken=crypto.randomBytes(32).toString("hex");return req.session.csrfToken}
-function requireAdmin(req,res,next){if(!isAdmin(req))return res.status(401).json({message:"Unauthorized"});next()}
+function requireAdmin(req,res,next){if(!isAdmin(req))return res.status(401).json({message:"Admin access is not approved."});next()}
+function requireOwner(req,res,next){if(!isOwner(req))return res.status(403).json({message:"Owner access required."});next()}
+function requireAdminEdit(req,res,next){if(!canEditAdmin(req))return res.status(403).json({message:"Editing permission is not enabled for this admin."});next()}
 function requireCsrf(req,res,next){const token=String(req.get("X-CSRF-Token")||"");if(!isAdmin(req)||!req.session.csrfToken||token!==req.session.csrfToken)return res.status(403).json({message:"Invalid security token"});next()}
 function cleanSlug(v){return String(v||"").trim().toLowerCase().replace(/[^a-z0-9-_]+/g,"-").replace(/^-+|-+$/g,"").slice(0,80)}
 function sorted(rows){return [...rows].sort((a,b)=>(Number(a.sortOrder||0)-Number(b.sortOrder||0))||(Number(b.id)-Number(a.id)))}
@@ -103,6 +122,56 @@ function effectiveBasePrice(req,p){const premiumActive=hasPremiumAccess(req.sess
 function publicProduct(req,p){const premiumActive=hasPremiumAccess(req.session?.discordUser?.id);const effectivePrice=premiumActive&&isPremiumEligibleScript(p)?0:Number(p.price||0);return {...p,effectivePrice,premiumIncluded:premiumActive&&isPremiumEligibleScript(p),category:categoryForProduct(p)} }
 function safeNextPath(v){const next=String(v||'').trim();if(!next.startsWith('/')||next.startsWith('//')||next.startsWith('/admin'))return '/';return next.slice(0,240)}
 function requireCustomerApi(req,res,next){if(!req.session?.discordUser)return res.status(401).json({message:'Login required. Please sign in before checkout.'});next()}
+function couponRows(){return read(COUPONS,[])}
+function saveCouponRows(rows){write(COUPONS,rows)}
+function cleanCouponCode(v){return String(v||"").trim().toUpperCase().replace(/[^A-Z0-9_-]/g,"").slice(0,32)}
+function normalizeCartItems(req,requestItems){
+  if(!Array.isArray(requestItems)||!requestItems.length)throw new Error("Cart is empty.");
+  const ps=products(),normalized=[];let subtotal=0;
+  for(const item of requestItems){
+    const p=ps.find(x=>Number(x.id)===Number(item.productId)&&x.active!==false);
+    const qty=Math.max(1,Math.min(Number(item.qty||1),20));
+    if(!p)throw new Error("A product is unavailable.");
+    let unitPrice=effectiveBasePrice(req,p),label=p.name;
+    const option=String(item.option||"");
+    if(p.productType==="programming_service"){
+      const sp=p.servicePricing||{};
+      if(option.startsWith("hours:")){
+        const hours=Math.max(1,Math.min(Number(option.split(":")[1]||1),4));
+        unitPrice=Number(sp.hourlyRate||0)*hours;label=`${p.name} - ${hours} Hour${hours>1?"s":""}`;
+      }else if(option==="weekly"){unitPrice=Number(sp.weekly||0);label=`${p.name} - Weekly`}
+      else if(option==="half_monthly"){unitPrice=Number(sp.halfMonthly||0);label=`${p.name} - Half Monthly`}
+      else if(option==="monthly"){unitPrice=Number(sp.monthly||0);label=`${p.name} - Monthly`}
+      else if(option==="yearly"){unitPrice=Number(sp.yearly||0);label=`${p.name} - Yearly`}
+      else throw new Error("Choose a programming service option.");
+    }
+    if(!Number.isFinite(unitPrice)||unitPrice<0)throw new Error("Invalid product price.");
+    subtotal+=unitPrice*qty;
+    normalized.push({productId:p.id,name:label,qty,unitPrice:Number(unitPrice),lineTotal:Number((unitPrice*qty).toFixed(2))});
+  }
+  return {items:normalized,subtotal:Number(subtotal.toFixed(2))};
+}
+function applyCouponToCart(normalized,couponCode){
+  const code=cleanCouponCode(couponCode);
+  const subtotal=Number(normalized.subtotal||0);
+  if(!code)return {subtotal,discount:0,total:subtotal,coupon:null};
+  const coupon=couponRows().find(x=>cleanCouponCode(x.code)===code);
+  if(!coupon||coupon.active===false)throw new Error("Coupon code is invalid or inactive.");
+  const productIds=Array.isArray(coupon.productIds)?coupon.productIds.map(Number).filter(Number.isFinite):[];
+  const eligible=(normalized.items||[]).filter(i=>!productIds.length||productIds.includes(Number(i.productId)));
+  const eligibleSubtotal=eligible.reduce((a,i)=>a+Number(i.unitPrice||0)*Number(i.qty||1),0);
+  if(eligibleSubtotal<=0)throw new Error("This coupon does not apply to the products in your cart.");
+  const type=String(coupon.type||"percent");const value=Number(coupon.value||0);let discount=0;
+  if(type==="percent")discount=eligibleSubtotal*Math.min(Math.max(value,0),100)/100;
+  else if(type==="fixed")discount=Math.min(Math.max(value,0),eligibleSubtotal);
+  else throw new Error("Coupon configuration is invalid.");
+  discount=Number(discount.toFixed(2));const total=Number(Math.max(0,subtotal-discount).toFixed(2));
+  return {subtotal,discount,total,coupon:{code:coupon.code,type,value,productIds}};
+}
+function hydrateOrderItems(order){
+  const ps=products();
+  return {...order,items:(Array.isArray(order?.items)?order.items:[]).map(it=>{const p=ps.find(x=>Number(x.id)===Number(it.productId));return {...it,name:String(it.name||p?.name||`Product #${it.productId||""}`),qty:Number(it.qty||1),unitPrice:Number(it.unitPrice||0)}})};
+}
 
 function commentStore(){return read(PRODUCT_COMMENTS,{});}
 function commentKey(id){return String(Number(id)||0);}
@@ -187,6 +256,16 @@ app.get("/auth/discord",(req,res)=>{
   res.redirect(`https://discord.com/oauth2/authorize?${q.toString()}`);
 });
 
+app.get("/auth/admin-discord",(req,res)=>{
+  if(!DISCORD_CLIENT_ID||!DISCORD_REDIRECT_URI)return res.status(503).send("Discord login is not configured.");
+  const state=crypto.randomBytes(24).toString("hex");
+  req.session.discordOAuthState=state;
+  req.session.discordReturnTo="/admin";
+  req.session.adminOAuthIntent=true;
+  const q=new URLSearchParams({client_id:DISCORD_CLIENT_ID,redirect_uri:DISCORD_REDIRECT_URI,response_type:"code",scope:"identify",state});
+  res.redirect(`https://discord.com/oauth2/authorize?${q.toString()}`);
+});
+
 app.get("/auth/discord/callback",async(req,res)=>{
   try{
     if(!req.query.code||!req.query.state||req.query.state!==req.session.discordOAuthState){
@@ -223,7 +302,10 @@ app.get("/auth/discord/callback",async(req,res)=>{
       avatar:String(user.avatar||"")
     };
     delete req.session.discordOAuthState;
-    const returnTo=safeNextPath(req.session.discordReturnTo||"/");
+    const adminIntent=req.session.adminOAuthIntent===true;
+    if(adminIntent)registerAdminRequest(req.session.discordUser);
+    delete req.session.adminOAuthIntent;
+    const returnTo=adminIntent?"/admin":safeNextPath(req.session.discordReturnTo||"/");
     delete req.session.discordReturnTo;
     res.redirect(returnTo);
   }catch(e){
@@ -261,7 +343,7 @@ app.get("/api/my-orders",(req,res)=>{
   const mine=rows.filter(o=>String(o.discord?.id||"")===String(discordId))
     .filter(o=>status==="all"||o.status===status)
     .sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
-  res.json(mine);
+  res.json(mine.map(hydrateOrderItems));
 });
 
 app.get("/api/products",(req,res)=>res.json(sorted(products()).filter(p=>p.active!==false).map(p=>publicProduct(req,p))));
@@ -271,6 +353,11 @@ app.get("/api/products/slug/:slug",(req,res)=>{
   res.json(publicProduct(req,p));
 });
 
+
+app.post("/api/coupons/validate",(req,res)=>{
+  try{const requestItems=Array.isArray(req.body?.items)?req.body.items:[];const normalized=normalizeCartItems(req,requestItems);const result=applyCouponToCart(normalized,req.body?.code);res.json({ok:true,items:normalized.items,...result});}
+  catch(e){res.status(400).json({message:e.message||"Could not apply coupon."})}
+});
 
 // Built-in technical support chat
 app.get("/api/support/thread/:token",(req,res)=>{
@@ -319,7 +406,7 @@ app.get("/api/admin/support/:id",requireAdmin,(req,res)=>{
   res.json({...publicSupportThread(rows[i]),customer:rows[i].customer||{}});
 });
 
-app.post("/api/admin/support/:id/messages",requireAdmin,requireCsrf,(req,res)=>{
+app.post("/api/admin/support/:id/messages",requireAdmin,requireAdminEdit,requireCsrf,(req,res)=>{
   const message=String(req.body?.message||"").trim();
   if(!message)return res.status(400).json({message:"Write a reply first."});
   if(message.length>1200)return res.status(400).json({message:"Reply is too long."});
@@ -332,7 +419,7 @@ app.post("/api/admin/support/:id/messages",requireAdmin,requireCsrf,(req,res)=>{
   res.json({ok:true,thread:{...publicSupportThread(thread),customer:thread.customer||{}}});
 });
 
-app.patch("/api/admin/support/:id/status",requireAdmin,requireCsrf,(req,res)=>{
+app.patch("/api/admin/support/:id/status",requireAdmin,requireAdminEdit,requireCsrf,(req,res)=>{
   const status=String(req.body?.status||"");
   if(!["open","closed"].includes(status))return res.status(400).json({message:"Invalid conversation status."});
   const rows=supportChats(),i=rows.findIndex(x=>x.id===String(req.params.id||""));
@@ -341,18 +428,33 @@ app.patch("/api/admin/support/:id/status",requireAdmin,requireCsrf,(req,res)=>{
   res.json({ok:true,status});
 });
 
-app.get("/api/admin/session",(req,res)=>res.json({authenticated:isAdmin(req),csrfToken:isAdmin(req)?ensureCsrf(req):null}));
+app.get("/api/admin/session",(req,res)=>{
+  if(!isAdmin(req)&&req.session?.discordUser){const row=adminAccessFor(req.session.discordUser.id);if(row?.status==="approved"){req.session.isAdmin=true;req.session.adminRole="staff";req.session.adminDiscordId=String(row.discordId)}}
+  const authenticated=isAdmin(req),row=authenticated&&!isOwner(req)?currentStaffAccess(req):null;
+  res.json({authenticated,role:isOwner(req)?"owner":authenticated?"staff":"none",canEdit:authenticated?canEditAdmin(req):false,csrfToken:authenticated?ensureCsrf(req):null,adminUser:row?{discordId:row.discordId,username:row.username,globalName:row.globalName}:null,discordConnected:Boolean(req.session?.discordUser),accessStatus:req.session?.discordUser?adminAccessFor(req.session.discordUser.id)?.status||"none":"none"});
+});
+app.get("/api/admin/access-status",(req,res)=>{
+  const u=req.session?.discordUser;if(!u)return res.json({connected:false,status:"none",authenticated:false});
+  const row=adminAccessFor(u.id);if(row?.status==="approved"){req.session.isAdmin=true;req.session.adminRole="staff";req.session.adminDiscordId=String(row.discordId);return res.json({connected:true,status:"approved",authenticated:true,canEdit:Boolean(row.canEdit),csrfToken:ensureCsrf(req),user:u})}
+  res.json({connected:true,status:row?.status||"none",authenticated:false,canEdit:false,user:u});
+});
 app.post("/api/admin/login",authLimiter,(req,res)=>{
   const expected=String(process.env.ADMIN_PASSWORD||""),supplied=String(req.body?.password||"");
   if(!expected||expected==="CHANGE_THIS_TO_A_LONG_RANDOM_PASSWORD")return res.status(503).json({message:"Set ADMIN_PASSWORD in .env first."});
   const a=Buffer.from(expected),b=Buffer.from(supplied);
   if(a.length!==b.length||!crypto.timingSafeEqual(a,b))return res.status(401).json({message:"Incorrect password."});
-  req.session.regenerate(err=>{if(err)return res.status(500).json({message:"Session error"});req.session.isAdmin=true;const csrfToken=ensureCsrf(req);res.json({ok:true,csrfToken})});
+  req.session.regenerate(err=>{if(err)return res.status(500).json({message:"Session error"});req.session.isAdmin=true;req.session.adminRole="owner";const csrfToken=ensureCsrf(req);res.json({ok:true,csrfToken,role:"owner",canEdit:true})});
 });
 app.post("/api/admin/logout",requireAdmin,requireCsrf,(req,res)=>req.session.destroy(()=>res.json({ok:true})));
+app.get("/api/admin/admin-access",requireAdmin,requireOwner,(_req,res)=>res.json(adminAccessRows().sort((a,b)=>String(b.lastLoginAt||b.requestedAt||"").localeCompare(String(a.lastLoginAt||a.requestedAt||"")))));
+app.patch("/api/admin/admin-access/:discordId",requireAdmin,requireOwner,requireCsrf,(req,res)=>{
+  const id=String(req.params.discordId||"");const rows=adminAccessRows(),i=rows.findIndex(x=>String(x.discordId||"")===id);if(i<0)return res.status(404).json({message:"Admin request not found."});
+  if(req.body?.status!==undefined){const status=String(req.body.status);if(!["pending","approved","denied"].includes(status))return res.status(400).json({message:"Invalid access status."});rows[i].status=status}
+  if(req.body?.canEdit!==undefined)rows[i].canEdit=req.body.canEdit===true;rows[i].updatedAt=new Date().toISOString();saveAdminAccessRows(rows);res.json(rows[i]);
+});
 app.get("/api/admin/products",requireAdmin,(_req,res)=>res.json(sorted(products())));
 
-app.post("/api/admin/products",requireAdmin,requireCsrf,upload.fields([{name:"image",maxCount:1},{name:"previewImages",maxCount:12}]),(req,res)=>{
+app.post("/api/admin/products",requireAdmin,requireAdminEdit,requireCsrf,upload.fields([{name:"image",maxCount:1},{name:"previewImages",maxCount:12}]),(req,res)=>{
   const rows=products(),name=String(req.body.name||"").trim(),slug=cleanSlug(req.body.slug||name),price=Number(req.body.price||0);
   if(!name||!slug)return res.status(400).json({message:"Name and slug are required."});
   if(!Number.isFinite(price)||price<0)return res.status(400).json({message:"Invalid price."});
@@ -365,7 +467,7 @@ app.post("/api/admin/products",requireAdmin,requireCsrf,upload.fields([{name:"im
   const row={id:nextId(rows),slug,name,tag:String(req.body.tag||"ELEVEN").trim().slice(0,30),description:String(req.body.description||"").trim(),price,image:req.files?.image?.[0]?`/uploads/${req.files.image[0].filename}`:"",previewImages:(req.files?.previewImages||[]).map(f=>`/uploads/${f.filename}`),active:String(req.body.active||"1")==="1",sortOrder:Number(req.body.sortOrder||0),productType,servicePricing};
   rows.push(row);saveProducts(rows);res.json(row)
 });
-app.put("/api/admin/products/:id",requireAdmin,requireCsrf,upload.fields([{name:"image",maxCount:1},{name:"previewImages",maxCount:12}]),(req,res)=>{
+app.put("/api/admin/products/:id",requireAdmin,requireAdminEdit,requireCsrf,upload.fields([{name:"image",maxCount:1},{name:"previewImages",maxCount:12}]),(req,res)=>{
   const rows=products(),id=Number(req.params.id),i=rows.findIndex(p=>Number(p.id)===id);if(i<0)return res.status(404).json({message:"Product not found."});
   const old=rows[i],name=String(req.body.name||old.name).trim(),slug=cleanSlug(req.body.slug||old.slug),price=Number(req.body.price??old.price);
   if(rows.some(p=>Number(p.id)!==id&&p.slug===slug))return res.status(409).json({message:"Slug already exists."});
@@ -387,7 +489,7 @@ app.put("/api/admin/products/:id",requireAdmin,requireCsrf,upload.fields([{name:
   saveProducts(rows);res.json(rows[i])
 });
 
-app.patch("/api/admin/products/:id/visibility",requireAdmin,requireCsrf,(req,res)=>{
+app.patch("/api/admin/products/:id/visibility",requireAdmin,requireAdminEdit,requireCsrf,(req,res)=>{
   const rows=products();
   const id=Number(req.params.id);
   const i=rows.findIndex(p=>Number(p.id)===id);
@@ -397,21 +499,21 @@ app.patch("/api/admin/products/:id/visibility",requireAdmin,requireCsrf,(req,res
   res.json(rows[i]);
 });
 
-app.delete("/api/admin/products/:id",requireAdmin,requireCsrf,(req,res)=>{
+app.delete("/api/admin/products/:id",requireAdmin,requireAdminEdit,requireCsrf,(req,res)=>{
   const rows=products(),id=Number(req.params.id),i=rows.findIndex(p=>Number(p.id)===id);if(i<0)return res.status(404).json({message:"Product not found."});
   rows.splice(i,1);saveProducts(rows);res.json({ok:true})
 });
 
-app.get("/api/admin/receipt-logs",requireAdmin,(_req,res)=>{const rows=read(RECEIPT_LOGS,[]);res.json([...rows].sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||""))))});
+app.get("/api/admin/receipt-logs",requireAdmin,(_req,res)=>{const rows=read(RECEIPT_LOGS,[]);res.json([...rows].sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||""))).map(hydrateOrderItems))});
 
 
 app.get("/api/admin/orders",requireAdmin,(req,res)=>{
   const status=String(req.query.status||"processing");
   const rows=read(RECEIPT_LOGS,[]);
-  res.json(rows.filter(x=>status==="all"||x.status===status).sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||""))));
+  res.json(rows.filter(x=>status==="all"||x.status===status).sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||""))).map(hydrateOrderItems));
 });
 
-app.patch("/api/admin/orders/:id/status",requireAdmin,requireCsrf,(req,res)=>{
+app.patch("/api/admin/orders/:id/status",requireAdmin,requireAdminEdit,requireCsrf,(req,res)=>{
   const allowed=["processing","delivered"];
   const status=String(req.body?.status||"");
   if(!allowed.includes(status))return res.status(400).json({message:"Invalid order status."});
@@ -432,7 +534,7 @@ app.patch("/api/admin/orders/:id/status",requireAdmin,requireCsrf,(req,res)=>{
 
 
 app.get("/api/admin/premium-members",requireAdmin,(_req,res)=>res.json(premiumMembers()));
-app.patch("/api/admin/premium-members/:discordId",requireAdmin,requireCsrf,(req,res)=>{
+app.patch("/api/admin/premium-members/:discordId",requireAdmin,requireAdminEdit,requireCsrf,(req,res)=>{
   const discordId=String(req.params.discordId||"").trim();
   if(!/^\d{10,25}$/.test(discordId))return res.status(400).json({message:"Invalid Discord ID."});
   const members=premiumMembers();
@@ -443,12 +545,31 @@ app.patch("/api/admin/premium-members/:discordId",requireAdmin,requireCsrf,(req,
   res.json({ok:true,discordId,active});
 });
 
+app.get("/api/admin/coupons",requireAdmin,(_req,res)=>res.json(couponRows().sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||"")))));
+app.post("/api/admin/coupons",requireAdmin,requireAdminEdit,requireCsrf,(req,res)=>{
+  const rows=couponRows(),code=cleanCouponCode(req.body?.code),type=String(req.body?.type||"percent"),value=Number(req.body?.value||0),active=req.body?.active!==false;
+  const productIds=Array.isArray(req.body?.productIds)?req.body.productIds.map(Number).filter(Number.isFinite):[];
+  if(!code)return res.status(400).json({message:"Coupon code is required."});if(rows.some(x=>cleanCouponCode(x.code)===code))return res.status(409).json({message:"Coupon code already exists."});
+  if(!["percent","fixed"].includes(type)||!Number.isFinite(value)||value<=0||(type==="percent"&&value>100))return res.status(400).json({message:"Invalid coupon discount."});
+  const validIds=new Set(products().map(p=>Number(p.id)));if(productIds.some(id=>!validIds.has(id)))return res.status(400).json({message:"One or more selected products do not exist."});
+  const row={id:nextId(rows),code,type,value,productIds:[...new Set(productIds)],active,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};rows.push(row);saveCouponRows(rows);res.json(row);
+});
+app.put("/api/admin/coupons/:id",requireAdmin,requireAdminEdit,requireCsrf,(req,res)=>{
+  const rows=couponRows(),id=Number(req.params.id),i=rows.findIndex(x=>Number(x.id)===id);if(i<0)return res.status(404).json({message:"Coupon not found."});
+  const code=cleanCouponCode(req.body?.code??rows[i].code),type=String(req.body?.type??rows[i].type),value=Number(req.body?.value??rows[i].value),active=req.body?.active!==false;
+  const productIds=Array.isArray(req.body?.productIds)?req.body.productIds.map(Number).filter(Number.isFinite):(rows[i].productIds||[]);
+  if(!code||rows.some(x=>Number(x.id)!==id&&cleanCouponCode(x.code)===code))return res.status(409).json({message:"Coupon code is invalid or already exists."});
+  if(!["percent","fixed"].includes(type)||!Number.isFinite(value)||value<=0||(type==="percent"&&value>100))return res.status(400).json({message:"Invalid coupon discount."});
+  rows[i]={...rows[i],code,type,value,productIds:[...new Set(productIds)],active,updatedAt:new Date().toISOString()};saveCouponRows(rows);res.json(rows[i]);
+});
+app.delete("/api/admin/coupons/:id",requireAdmin,requireAdminEdit,requireCsrf,(req,res)=>{const rows=couponRows(),id=Number(req.params.id),i=rows.findIndex(x=>Number(x.id)===id);if(i<0)return res.status(404).json({message:"Coupon not found."});rows.splice(i,1);saveCouponRows(rows);res.json({ok:true})});
+
 app.get("/api/admin/notifications",requireAdmin,(_req,res)=>{
   const rows=read(NOTIFICATIONS,[]);
   res.json([...rows].sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||""))));
 });
 
-app.post("/api/admin/notifications",requireAdmin,requireCsrf,(req,res)=>{
+app.post("/api/admin/notifications",requireAdmin,requireAdminEdit,requireCsrf,(req,res)=>{
   const message=String(req.body?.message||"").trim();
   const targetDiscordId=String(req.body?.targetDiscordId||"").trim();
   if(!message)return res.status(400).json({message:"Notification message is required."});
@@ -476,31 +597,15 @@ app.post("/api/checkout/bank-transfer",requireCustomerApi,receiptUpload.single("
     if(!/^\+[1-9]\d{6,14}$/.test(phone))return res.status(400).json({message:"Enter a valid international phone number."});
 
     let requestItems=[];
-    try{requestItems=JSON.parse(String(req.body.items||"[]"))}catch{return res.status(400).json({message:"Invalid cart data."})}
+    if(Array.isArray(req.body?.items))requestItems=req.body.items;else try{requestItems=JSON.parse(String(req.body?.items||"[]"))}catch{return res.status(400).json({message:"Invalid cart data."})}
     if(!Array.isArray(requestItems)||!requestItems.length)return res.status(400).json({message:"Cart is empty."});
 
-    const ps=products(),normalized=[];let total=0;
-    for(const item of requestItems){
-      const p=ps.find(x=>Number(x.id)===Number(item.productId)&&x.active!==false);
-      const qty=Math.max(1,Math.min(Number(item.qty||1),20));
-      if(!p)return res.status(400).json({message:"A product is unavailable."});
-      let unitPrice=effectiveBasePrice(req,p),label=p.name;
-      const option=String(item.option||"");
-      if(p.productType==="programming_service"){
-        const sp=p.servicePricing||{};
-        if(option.startsWith("hours:")){
-          const hours=Math.max(1,Math.min(Number(option.split(":")[1]||1),4));
-          unitPrice=Number(sp.hourlyRate||0)*hours;label=`${p.name} - ${hours} Hour${hours>1?"s":""}`;
-        }else if(option==="weekly"){unitPrice=Number(sp.weekly||0);label=`${p.name} - Weekly`}
-        else if(option==="half_monthly"){unitPrice=Number(sp.halfMonthly||0);label=`${p.name} - Half Monthly`}
-        else if(option==="monthly"){unitPrice=Number(sp.monthly||0);label=`${p.name} - Monthly`}
-        else if(option==="yearly"){unitPrice=Number(sp.yearly||0);label=`${p.name} - Yearly`}
-        else return res.status(400).json({message:"Choose a programming service option."});
-      }
-      if(!Number.isFinite(unitPrice)||unitPrice<0)return res.status(400).json({message:"Invalid product price."});
-      total+=unitPrice*qty;
-      normalized.push({productId:p.id,name:label,qty,unitPrice});
-    }
+    let normalizedResult;
+    try{normalizedResult=normalizeCartItems(req,requestItems)}catch(e){return res.status(400).json({message:e.message})}
+    let priced;
+    try{priced=applyCouponToCart(normalizedResult,req.body?.couponCode)}catch(e){return res.status(400).json({message:e.message})}
+    const normalized=normalizedResult.items,total=priced.total;
+    if(total<=0)return res.status(400).json({message:"This order is free after discount. Use the free order checkout."});
 
     const extMap={"image/png":".png","image/jpeg":".jpg","image/webp":".webp","application/pdf":".pdf"};
     const ext=extMap[req.file.mimetype]||".bin";
@@ -513,7 +618,7 @@ app.post("/api/checkout/bank-transfer",requireCustomerApi,receiptUpload.single("
     const entry={
       id,orderNumber,email,phone,
       discord:req.session.discordUser,
-      amount:Number(total.toFixed(2)),currency:"SAR",items:normalized,
+      subtotal:priced.subtotal,discount:priced.discount,coupon:priced.coupon,amount:Number(total.toFixed(2)),currency:"SAR",items:normalized,
       receiptUrl:`/uploads/receipts/${filename}`,receiptFilename:filename,
       status:"processing",createdAt:new Date().toISOString(),deliveredAt:null
     };
@@ -534,21 +639,17 @@ app.post("/api/checkout/free-order",requireCustomerApi,(req,res)=>{
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))return res.status(400).json({message:"Enter a valid email address."});
     if(!/^\+[1-9]\d{6,14}$/.test(phone))return res.status(400).json({message:"Enter a valid international phone number."});
     let requestItems=[];
-    try{requestItems=JSON.parse(String(req.body.items||"[]"))}catch{return res.status(400).json({message:"Invalid cart data."})}
+    if(Array.isArray(req.body?.items))requestItems=req.body.items;else try{requestItems=JSON.parse(String(req.body?.items||"[]"))}catch{return res.status(400).json({message:"Invalid cart data."})}
     if(!Array.isArray(requestItems)||!requestItems.length)return res.status(400).json({message:"Cart is empty."});
-    const ps=products(),normalized=[];let total=0;
-    for(const item of requestItems){
-      const p=ps.find(x=>Number(x.id)===Number(item.productId)&&x.active!==false);
-      const qty=Math.max(1,Math.min(Number(item.qty||1),20));
-      if(!p)return res.status(400).json({message:"A product is unavailable."});
-      let unitPrice=effectiveBasePrice(req,p),label=p.name;
-      if(String(p.productType||'')==='programming_service')return res.status(400).json({message:"Services are not free under premium subscription."});
-      total+=unitPrice*qty;normalized.push({productId:p.id,name:label,qty,unitPrice});
-    }
+    let normalizedResult;
+    try{normalizedResult=normalizeCartItems(req,requestItems)}catch(e){return res.status(400).json({message:e.message})}
+    let priced;
+    try{priced=applyCouponToCart(normalizedResult,req.body?.couponCode)}catch(e){return res.status(400).json({message:e.message})}
+    const normalized=normalizedResult.items,total=priced.total;
     if(total!==0)return res.status(400).json({message:"This order is not free. Use bank transfer checkout instead."});
     const logs=read(RECEIPT_LOGS,[]);
     const id=nextId(logs),orderNumber=`ES-${String(id).padStart(5,"0")}`;
-    const entry={id,orderNumber,email,phone,discord:req.session.discordUser,amount:0,currency:"SAR",items:normalized,receiptUrl:"",receiptFilename:"",status:"delivered",createdAt:new Date().toISOString(),deliveredAt:new Date().toISOString()};
+    const entry={id,orderNumber,email,phone,discord:req.session.discordUser,subtotal:priced.subtotal,discount:priced.discount,coupon:priced.coupon,amount:0,currency:"SAR",items:normalized,receiptUrl:"",receiptFilename:"",status:"delivered",createdAt:new Date().toISOString(),deliveredAt:new Date().toISOString()};
     logs.push(entry);write(RECEIPT_LOGS,logs);
     console.log(`[PREMIUM FREE ORDER] ${orderNumber} | @${entry.discord.username} (${entry.discord.id})`);
     return res.json({ok:true,orderNumber,amount:0,status:"delivered"});
@@ -613,4 +714,4 @@ app.use((err,req,res,next)=>{
 });
 
 app.use((_req,res)=>res.status(404).send("Not found"));
-app.listen(PORT,()=>{console.log(`Eleven Store v6.3 Support running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});
+app.listen(PORT,()=>{console.log(`Eleven Store v6.3.4 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});

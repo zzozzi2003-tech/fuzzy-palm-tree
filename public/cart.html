@@ -1,7 +1,5 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cart | Eleven Store</title><link rel="stylesheet" href="/commerce.css"><link rel="stylesheet" href="/support-chat.css">
-</head>
-<body><header><div class="wrap"><a href="/" class="brand"><img src="/assets/eleven-logo.png">Eleven Store</a><a href="/">Continue Shopping</a></div></header>
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cart | Eleven Store</title><link rel="stylesheet" href="/commerce.css"><link rel="stylesheet" href="/support-chat.css"></head>
+<body><header><div class="wrap"><a href="/" class="brand"><img src="/assets/eleven-logo.png">Eleven Store</a><nav class="cart-nav"><a href="/">Continue Shopping</a><a href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener">DISCORD</a></nav></div></header>
 <main class="wrap cart-layout"><section><div class="title-row"><h1>Shopping Cart</h1><span id="count"></span></div><div id="items"></div></section>
-<aside class="summary"><h2>Order Summary</h2><div><span>Products total</span><strong id="subtotal">SAR 0</strong></div><div class="total"><span>Total</span><strong id="total">SAR 0</strong></div><button id="checkout">Complete Order</button></aside></main>
-<script src="/store-config.js"></script><script src="/cart.js"></script><script src="/support-chat.js"></script>
-</body></html>
+<aside class="summary"><h2>Order Summary</h2><div><span>Products total</span><strong id="subtotal">SAR 0</strong></div><div id="discountRow" class="hidden"><span>Coupon discount</span><strong id="discount">SAR 0</strong></div><section class="cart-coupon"><label for="coupon">Coupon code</label><div><input id="coupon" maxlength="32" placeholder="ELEVEN20"><button id="applyCoupon" type="button">Apply</button></div><small id="couponMessage"></small></section><div class="total"><span>Total</span><strong id="total">SAR 0</strong></div><button id="checkout">Complete Order</button></aside></main>
+<script src="/store-config.js"></script><script src="/cart.js"></script><script src="/support-chat.js"></script></body></html>

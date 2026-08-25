@@ -11,6 +11,7 @@
   <div class="container header-inner">
     <a class="brand" href="/"><img src="/assets/eleven-logo.png"><span>Eleven Store</span></a>
     <div class="header-actions">
+      <a class="ghost-btn discord-admin-top" href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener">DISCORD</a>
       <a class="ghost-btn" href="/" target="_blank">View Store</a>
       <button id="logout" class="ghost-btn hidden">Logout</button>
     </div>
@@ -21,11 +22,14 @@
   <section id="loginView" class="login-card">
     <span class="eyebrow">ADMIN DASHBOARD</span>
     <h1>Eleven Store Admin</h1>
-    <p>Secure management for your store.</p>
+    <p>Owner access or approved staff access.</p>
     <form id="loginForm">
-      <input id="password" type="password" placeholder="Admin password" required>
-      <button class="primary-btn">Login</button>
+      <input id="password" type="password" placeholder="Owner password" required>
+      <button class="primary-btn">Owner Login</button>
     </form>
+    <div class="admin-login-divider"><span>OR</span></div>
+    <a class="discord-admin-login" href="/auth/admin-discord"><span class="discord-html-icon">D</span><span>Login with Discord as Staff</span></a>
+    <div id="staffAccessStatus" class="staff-access-status hidden"></div>
     <small id="loginMessage"></small>
   </section>
 
@@ -34,9 +38,10 @@
       <div>
         <span class="eyebrow">PRODUCTS</span>
         <h1>Store Dashboard</h1>
-        <p>Manage products, images, prices, visibility and ordering.</p>
+        <p>Manage products, orders, coupons, support and staff access.</p>
+        <div id="adminIdentity" class="admin-identity"></div>
       </div>
-      <div class="dash-actions"><button id="showPremium" class="ghost-btn">Premium Members</button><button id="showSupport" class="ghost-btn support-admin-btn">Support Chat <b id="supportUnreadBadge" class="support-unread hidden">0</b></button><button id="showNotifications" class="ghost-btn">Notify Members</button><button id="showOrders" class="ghost-btn">Orders</button><button id="showReceiptLogs" class="ghost-btn">Payment Logs</button><button id="newProduct" class="primary-btn">+ Add Product</button></div>
+      <div class="dash-actions"><button id="showAdminAccess" class="ghost-btn hidden">Admin Access <b id="adminPendingBadge" class="support-unread hidden">0</b></button><button id="showCoupons" class="ghost-btn">Coupons</button><button id="showPremium" class="ghost-btn">Premium Members</button><button id="showSupport" class="ghost-btn support-admin-btn">Support Chat <b id="supportUnreadBadge" class="support-unread hidden">0</b></button><button id="showNotifications" class="ghost-btn">Notify Members</button><button id="showOrders" class="ghost-btn">Orders</button><button id="showReceiptLogs" class="ghost-btn">Payment Logs</button><button id="newProduct" class="primary-btn">Add Product</button></div>
     </div>
 
     <div class="stats">
@@ -66,6 +71,28 @@
       </form>
     </section>
   </div>
+</section>
+
+<section id="couponsSection" class="coupons-section hidden">
+  <div class="logs-head"><div><span class="eyebrow">DISCOUNTS</span><h2>Coupon Management</h2><p>Create a coupon for all products or selected products only.</p></div><button id="closeCoupons" class="ghost-btn">Close</button></div>
+  <form id="couponForm" class="coupon-form">
+    <input id="couponId" type="hidden">
+    <label>Coupon code<input id="couponCode" maxlength="32" placeholder="ELEVEN20" required></label>
+    <div class="two">
+      <label>Discount type<select id="couponType"><option value="percent">Percentage</option><option value="fixed">Fixed amount (SAR)</option></select></label>
+      <label>Discount value<input id="couponValue" type="number" min="0.01" step="0.01" required></label>
+    </div>
+    <label class="toggle"><input id="couponActive" type="checkbox" checked> Coupon active</label>
+    <div class="coupon-products-block"><div><strong>Products</strong><small>Leave all unselected to apply the coupon to every product.</small></div><div id="couponProducts" class="coupon-product-options"></div></div>
+    <div class="coupon-form-actions"><button class="primary-btn" id="saveCoupon">Save Coupon</button><button class="ghost-btn hidden" type="button" id="cancelCouponEdit">Cancel Edit</button></div>
+    <small id="couponMessage"></small>
+  </form>
+  <div id="couponList" class="coupon-list"></div>
+</section>
+
+<section id="adminAccessSection" class="admin-access-section hidden">
+  <div class="logs-head"><div><span class="eyebrow">STAFF ACCESS</span><h2>Admin Login Requests</h2><p>Approve who can enter the dashboard and separately choose who can edit.</p></div><button id="closeAdminAccess" class="ghost-btn">Close</button></div>
+  <div id="adminAccessList" class="admin-access-list"></div>
 </section>
 
 <section id="premiumSection" class="premium-section hidden">

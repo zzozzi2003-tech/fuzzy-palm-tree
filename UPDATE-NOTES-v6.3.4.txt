@@ -1,0 +1,32 @@
+ELEVEN STORE v6.3.4
+
+CHANGES
+- Admin order cards now show product name, quantity, unit price and line total.
+- Customer My Orders cards also show product name, quantity and price.
+- Removed the orange order-page theme and matched the blue/navy storefront UI.
+- Added DISCORD links to the top navigation across the main store pages.
+- Added admin-managed coupons: percentage or fixed SAR discount.
+- Coupons can apply to all products or selected products only.
+- Coupon calculations are validated server-side before an order is saved.
+- Added staff admin login using Discord. New staff logins appear as pending requests to the owner.
+- Owner can approve/disable admin access and separately enable/disable editing permission.
+- View-only admins can inspect data but cannot modify products/orders/coupons/support/premium.
+- Removed emoji UI icons and replaced them with text/HTML UI labels.
+- Existing Premium revoke/restore controls remain available.
+
+DATA SAFETY
+- data/products.json is unchanged from v6.3.3.
+- data/products.backup-v6.3.4.json is an exact backup of products.json.
+- New runtime files: data/coupons.json and data/admin-access.json.
+- When updating a live server, keep your live data folder if it contains newer orders/products than this ZIP.
+
+ADMIN STAFF LOGIN FLOW
+1. Owner signs into /admin with ADMIN_PASSWORD.
+2. Staff opens /admin and chooses Login with Discord as Staff.
+3. Their Discord account appears in Admin Access.
+4. Owner clicks Approve Access.
+5. Owner optionally clicks Allow Editing.
+6. Staff page automatically detects approval and opens the dashboard.
+
+COUPONS
+Open Admin > Coupons. Leave all product checkboxes unselected to apply the coupon to every product, or select specific products to restrict the coupon.
