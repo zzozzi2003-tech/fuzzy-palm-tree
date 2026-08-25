@@ -1,0 +1,5 @@
+Eleven Store v6.5.2
+- Larger product cards: 4 columns on desktop instead of 5 small cards.
+- Increased product image area.
+- Fixed fallback Eleven logo so it displays as a large centered square instead of a thin strip.
+- Responsive 3 / 2 / 1 column layout for smaller screens.
