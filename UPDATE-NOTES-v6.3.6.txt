@@ -1,0 +1,5 @@
+Eleven Store v6.3.6
+- Added stronger mouse-follow motion for the product showcase section.
+- Product grid now drifts smoothly with the mouse.
+- Product cards now float slightly with the showcase movement.
+- Preserves live data when only public files are replaced.
