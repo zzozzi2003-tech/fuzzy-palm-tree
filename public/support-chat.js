@@ -5,8 +5,8 @@
   <section id="supportPanel" class="support-panel hidden" aria-live="polite">
     <div class="support-panel-head">
       <div>
-        <strong>AI Support</strong>
-        <small>Replies instantly, human support can continue later.</small>
+        <strong>Technical Support</strong>
+        <small>مساعد تلقائي، ويقدر فريق الدعم يستلم المحادثة عند الحاجة.</small>
       </div>
       <button id="supportClose" type="button" aria-label="Close">×</button>
     </div>
@@ -28,7 +28,7 @@
   if(!token){ token=(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(16).slice(2)}`).replace(/[^a-f0-9-]/gi,''); localStorage.setItem(tokenKey,token); }
   let polling=0, opened=false;
 
-  const labelMap={customer:'You',support:'Support',ai:'AI'};
+  const labelMap={customer:'أنت',support:'الدعم',ai:'المساعد'};
   function timeText(v){ try{return new Date(v).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});}catch{return ''} }
   function bubble(msg){
     const mine=msg.from==='customer';
@@ -42,7 +42,8 @@
       const res=await fetch(`/api/support/thread/${encodeURIComponent(token)}`);
       const data=await res.json();
       const list=data.thread?.messages||[];
-      messages.innerHTML=list.length?list.map(bubble).join(''):`<div class="support-empty">Start a conversation with AI support.</div>`;
+      messages.innerHTML=list.length?list.map(bubble).join(''):`<div class="support-empty">ابدأ محادثتك مع الدعم الفني.</div>`;
+      if(data.thread?.claimedBy)state.textContent=`استلمها ${data.thread.claimedBy.name||'الدعم'}`;else if(data.thread?.aiEnabled===false)state.textContent='بانتظار الدعم';else state.textContent='متصل';
       if(opened) scrollDown();
     }catch(e){ state.textContent='Connection error'; }
   }
@@ -54,7 +55,7 @@
     const list=data.thread?.messages||[];
     messages.innerHTML=list.map(bubble).join('');
     scrollDown();
-    state.textContent='AI replied';
+    state.textContent=(data.thread?.claimedBy?'تم استلام المحادثة من الدعم':data.thread?.aiEnabled===false?'بانتظار الدعم':'تم الرد');
   }
   fab.addEventListener('click',()=>{opened=!opened; panel.classList.toggle('hidden',!opened); fab.classList.toggle('active',opened); if(opened){loadThread().then(scrollDown);} });
   closeBtn.addEventListener('click',()=>{opened=false; panel.classList.add('hidden'); fab.classList.remove('active');});

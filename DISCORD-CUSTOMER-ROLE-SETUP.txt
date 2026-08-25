@@ -1,0 +1,21 @@
+Eleven Store - Automatic Discord Customer Role
+
+1) Create or use a Discord bot in your Discord application.
+2) Invite the bot to your Discord server.
+3) Give the bot the Manage Roles permission.
+4) In Discord Server Settings > Roles, move the bot's role ABOVE the Customer role.
+5) Copy the following values into Render Environment (and .env for local use):
+
+DISCORD_BOT_TOKEN=your_bot_token
+DISCORD_GUILD_ID=your_discord_server_id
+DISCORD_CUSTOMER_ROLE_ID=your_customer_role_id
+
+Behavior:
+- Bank transfer: customer receives the role when an admin marks the order Delivered.
+- Free completed order: customer receives the role immediately.
+- Re-applying the same Discord role is safe/idempotent.
+- The customer must already be a member of the Discord server.
+- If Discord role assignment fails, the order is NOT cancelled. The reason is logged in the Render/server console.
+
+How to copy IDs in Discord:
+Enable Developer Mode in Discord settings, then right-click the server/role and choose Copy ID.

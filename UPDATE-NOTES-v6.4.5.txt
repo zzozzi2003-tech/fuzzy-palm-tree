@@ -1,0 +1,11 @@
+Eleven Store v6.4.5
+- Programming services show Choose Plan instead of FREE.
+- Compact cart icon with smaller count badge and no CART label.
+- Square interactive product cards with stronger hover motion.
+- Discord profile dropdown replaces the plain user/login label after sign in.
+- Home login returns to the store; checkout login returns to checkout only when checkout was requested.
+- Technical Support keeps the classic name while using an improved automatic assistant.
+- Admin can take/release chats and stop/enable the automatic assistant.
+- Admin replies automatically take over a chat and stop the assistant.
+- Admin review moderation panel can delete Discord reviews/comments.
+- Improved assistant intent matching so greetings do not trigger pricing responses.

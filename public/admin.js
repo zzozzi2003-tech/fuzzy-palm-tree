@@ -339,6 +339,18 @@ $('#cancelCouponEdit').addEventListener('click',resetCouponForm);
 $('#couponForm').addEventListener('submit',async e=>{e.preventDefault();if(!adminCanEdit)return;const id=$('#couponId').value;const body={code:$('#couponCode').value,type:$('#couponType').value,value:Number($('#couponValue').value),active:$('#couponActive').checked,productIds:couponSelectedIds()};$('#saveCoupon').disabled=true;try{await api(id?`/api/admin/coupons/${id}`:'/api/admin/coupons',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});resetCouponForm();await loadCoupons()}catch(err){$('#couponMessage').textContent=err.message}finally{$('#saveCoupon').disabled=false}});
 $('#couponList').addEventListener('click',async e=>{const edit=e.target.closest('[data-coupon-edit]'),del=e.target.closest('[data-coupon-delete]');if(edit){const c=coupons.find(x=>Number(x.id)===Number(edit.dataset.couponEdit));if(!c)return;$('#couponId').value=c.id;$('#couponCode').value=c.code;$('#couponType').value=c.type;$('#couponValue').value=c.value;$('#couponActive').checked=c.active!==false;renderCouponProductOptions(c.productIds||[]);$('#cancelCouponEdit').classList.remove('hidden');$('#couponForm').scrollIntoView({behavior:'smooth'});return}if(del){if(!confirm('Delete this coupon?'))return;await api(`/api/admin/coupons/${del.dataset.couponDelete}`,{method:'DELETE'});await loadCoupons()}});
 
+
+// Review moderation
+async function loadAdminReviews(){
+  clearInterval(supportPoll);supportPoll=null;
+  const rows=await api('/api/admin/reviews');
+  $('#reviewsAdminList').innerHTML=rows.map(r=>`<article class="review-admin-card"><div><span class="review-admin-stars">${'★'.repeat(Math.max(0,Math.min(5,Number(r.rating||0))))}${'☆'.repeat(5-Math.max(0,Math.min(5,Number(r.rating||0))))}</span><h3>${esc(r.productName||'Product')}</h3><p>${esc(r.message||'No written comment')}</p><small>${esc(r.displayName||r.username||'Discord User')} · @${esc(r.username||'discord')} · ${supportDate(r.updatedAt||r.createdAt)}</small></div>${adminCanEdit?`<button class="action-btn danger" data-review-delete="${esc(r.id)}" data-review-product="${Number(r.productId)}">Delete</button>`:'<span class="view-only-label">View only</span>'}</article>`).join('')||'<div class="empty-admin">No reviews yet.</div>';
+  $('#reviewsAdminSection').classList.remove('hidden');$('#supportSection').classList.add('hidden');$('#couponsSection').classList.add('hidden');$('#adminAccessSection').classList.add('hidden');$('#premiumSection').classList.add('hidden');$('#notificationsSection').classList.add('hidden');$('#ordersSection').classList.add('hidden');$('#receiptLogsSection').classList.add('hidden');$('#productList').classList.add('hidden');
+}
+$('#showReviews').addEventListener('click',()=>loadAdminReviews().catch(e=>alert(e.message)));
+$('#closeReviewsAdmin').addEventListener('click',()=>{$('#reviewsAdminSection').classList.add('hidden');$('#productList').classList.remove('hidden')});
+$('#reviewsAdminList').addEventListener('click',async e=>{const b=e.target.closest('[data-review-delete]');if(!b||!adminCanEdit)return;if(!confirm('Delete this review?'))return;await api(`/api/admin/products/${b.dataset.reviewProduct}/reviews/${encodeURIComponent(b.dataset.reviewDelete)}`,{method:'DELETE'});await loadAdminReviews()});
+
 // Owner-only staff access management
 async function loadAdminAccess(background=false){
   if(adminRole!=='owner')return;const rows=await api('/api/admin/admin-access');const pending=rows.filter(x=>x.status==='pending').length;$('#adminPendingBadge').textContent=pending;$('#adminPendingBadge').classList.toggle('hidden',pending===0);
@@ -365,8 +377,8 @@ async function loadSupportConversation(id,refreshList=true){
   activeSupportId=id;
   const t=await api(`/api/admin/support/${encodeURIComponent(id)}`);
   const discord=t.customer?.discordUsername?` · Discord @${esc(t.customer.discordUsername)}`:"";
-  $("#supportConversationHead").innerHTML=`<div><b>${esc(t.customer?.name||'Visitor')}</b><small>${esc(t.customer?.discordId||'Guest session')}${discord}</small></div><button class="support-close-btn" data-support-status="${t.status==='closed'?'open':'closed'}">${t.status==='closed'?'Reopen':'Close conversation'}</button>`;
-  $("#supportMessages").innerHTML=(t.messages||[]).map(m=>`<div class="admin-chat-msg ${m.from==='support'?'support':'customer'}">${esc(m.message)}<small>${m.from==='support'?'Support':'Customer'} · ${supportDate(m.createdAt)}</small></div>`).join("")||'<div class="empty-admin">No messages yet.</div>';
+  $("#supportConversationHead").innerHTML=`<div><b>${esc(t.customer?.name||'Visitor')}</b><small>${esc(t.customer?.discordId||'Guest session')}${discord}${t.claimedBy?` · Claimed by ${esc(t.claimedBy.name||'Staff')}`:''}</small></div><div class="support-head-actions"><button class="support-close-btn" data-support-control="${t.claimedBy?'release':'claim'}">${t.claimedBy?'Release Chat':'Take Chat'}</button><button class="support-close-btn" data-support-ai="${t.aiEnabled!==false?'0':'1'}">${t.aiEnabled!==false?'Stop Assistant':'Enable Assistant'}</button><button class="support-close-btn" data-support-status="${t.status==='closed'?'open':'closed'}">${t.status==='closed'?'Reopen':'Close'}</button></div>`;
+  $("#supportMessages").innerHTML=(t.messages||[]).map(m=>`<div class="admin-chat-msg ${m.from==='support'?'support':m.from==='ai'?'ai':'customer'}">${esc(m.message)}<small>${m.from==='support'?'Support':m.from==='ai'?'Assistant':'Customer'} · ${supportDate(m.createdAt)}</small></div>`).join("")||'<div class="empty-admin">No messages yet.</div>';
   $("#supportMessages").scrollTop=$("#supportMessages").scrollHeight;
   $("#supportReply").disabled=!adminCanEdit;$("#supportReplyButton").disabled=!adminCanEdit;
   document.querySelectorAll(".support-thread").forEach(x=>x.classList.toggle("active",x.dataset.supportId===id));
@@ -376,7 +388,16 @@ $("#showSupport").addEventListener("click",async()=>{$("#supportSection").classL
 $("#closeSupport").addEventListener("click",()=>{$("#supportSection").classList.add("hidden");$("#productList").classList.remove("hidden");clearInterval(supportPoll);supportPoll=null});
 $("#supportThreadList").addEventListener("click",e=>{const b=e.target.closest("[data-support-id]");if(b)loadSupportConversation(b.dataset.supportId).catch(err=>alert(err.message))});
 $("#supportReplyForm").addEventListener("submit",async e=>{e.preventDefault();if(!activeSupportId)return;const message=$("#supportReply").value.trim();if(!message)return;$("#supportReplyButton").disabled=true;try{await api(`/api/admin/support/${encodeURIComponent(activeSupportId)}/messages`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message})});$("#supportReply").value="";await loadSupportConversation(activeSupportId)}catch(err){alert(err.message)}finally{$("#supportReplyButton").disabled=false}});
-$("#supportConversationHead").addEventListener("click",async e=>{const b=e.target.closest("[data-support-status]");if(!b||!activeSupportId)return;await api(`/api/admin/support/${encodeURIComponent(activeSupportId)}/status`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:b.dataset.supportStatus})});await loadSupportConversation(activeSupportId)});
+$("#supportConversationHead").addEventListener("click",async e=>{
+  if(!activeSupportId)return;
+  const status=e.target.closest('[data-support-status]'),control=e.target.closest('[data-support-control]'),ai=e.target.closest('[data-support-ai]');
+  if(status)await api(`/api/admin/support/${encodeURIComponent(activeSupportId)}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:status.dataset.supportStatus})});
+  if(control)await api(`/api/admin/support/${encodeURIComponent(activeSupportId)}/control`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:control.dataset.supportControl})});
+  if(ai)await api(`/api/admin/support/${encodeURIComponent(activeSupportId)}/control`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'ai',enabled:ai.dataset.supportAi==='1'})});
+  if(status||control||ai)await loadSupportConversation(activeSupportId);
+});
 setInterval(()=>{if(!$("#dashboard").classList.contains("hidden"))loadSupportThreads(false).catch(()=>{})},15000);
 
 setInterval(async()=>{if(!$('#loginView').classList.contains('hidden')){try{const access=await api('/api/admin/access-status');if(access.authenticated){csrf=access.csrfToken||csrf;adminRole='staff';adminCanEdit=!!access.canEdit;await showDashboard()}else showLogin(access)}catch{}}},5000);
+
+document.querySelector('.dash-actions')?.addEventListener('click',e=>{if(!e.target.closest('#showReviews'))document.querySelector('#reviewsAdminSection')?.classList.add('hidden')});

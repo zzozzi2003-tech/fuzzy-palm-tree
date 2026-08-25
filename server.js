@@ -102,6 +102,11 @@ function isOwner(req){return req.session?.isAdmin===true&&req.session?.adminRole
 function currentStaffAccess(req){const id=req.session?.adminDiscordId||req.session?.discordUser?.id;if(!id)return null;return adminAccessFor(id)}
 function isAdmin(req){if(isOwner(req))return true;const row=currentStaffAccess(req);return req.session?.isAdmin===true&&req.session?.adminRole==="staff"&&row?.status==="approved"}
 function canEditAdmin(req){if(isOwner(req))return true;const row=currentStaffAccess(req);return isAdmin(req)&&row?.canEdit===true}
+function adminActor(req){
+  if(isOwner(req))return {id:"owner",name:"Owner"};
+  const row=currentStaffAccess(req);
+  return {id:String(row?.discordId||req.session?.discordUser?.id||"staff"),name:String(row?.globalName||row?.username||req.session?.discordUser?.globalName||req.session?.discordUser?.username||"Staff")};
+}
 function ensureCsrf(req){if(!req.session.csrfToken)req.session.csrfToken=crypto.randomBytes(32).toString("hex");return req.session.csrfToken}
 function requireAdmin(req,res,next){if(!isAdmin(req))return res.status(401).json({message:"Admin access is not approved."});next()}
 function requireOwner(req,res,next){if(!isOwner(req))return res.status(403).json({message:"Owner access required."});next()}
@@ -206,6 +211,8 @@ function publicSupportThread(thread){
     status:thread.status||"open",
     createdAt:thread.createdAt,
     updatedAt:thread.updatedAt,
+    aiEnabled:thread.aiEnabled!==false,
+    claimedBy:thread.claimedBy||null,
     messages:Array.isArray(thread.messages)?thread.messages.map(m=>({id:m.id,from:m.from,message:m.message,createdAt:m.createdAt})):[]
   };
 }
@@ -220,16 +227,40 @@ function customerForSupport(req,token){
 
 function generateAiSupportReply(message){
   const raw=String(message||'').trim();
-  const msg=raw.toLowerCase();
+  const msg=raw.toLowerCase().replace(/\s+/g,' ');
   const ar=/[\u0600-\u06FF]/.test(raw);
-  const answer=(arText,enText)=>ar?arText:enText;
-  if(!raw)return answer('هلا، اكتب سؤالك وسأحاول مساعدتك مباشرة.','Hi, send your question and I will try to help right away.');
-  if(/price|cost|سعر|كم|discount|خصم|coupon|كوبون/.test(msg)) return answer('بالنسبة للأسعار أو الخصومات: تقدر تتصفح صفحة المنتج للتفاصيل، وإذا عندك كود خصم استخدمه في السلة قبل الدفع. وإذا احتجت عرض خاص سيتم تحويلك للدعم البشري.', 'For prices or discounts: check the product page details, and use any coupon in the cart before checkout. If you need a custom offer, a human support member can review it.');
-  if(/payment|pay|checkout|دفع|تحويل|شراء|order|طلب/.test(msg)) return answer('إذا عندك مشكلة في الدفع أو الطلب: تأكد أنك مسجل دخول Discord ثم أكمل من السلة إلى الدفع. وإذا كان الطلب متعطل اكتب رقم الطلب أو اسم المنتج ليتم مراجعته.', 'If you have a payment or order issue: make sure you are logged in with Discord, then continue from the cart to checkout. If an order is stuck, send the order number or product name for review.');
-  if(/premium|premier|بريم|اشتراك/.test(msg)) return answer('اشتراك Premium يعطيك وصولًا للمحتوى المشمول بالاشتراك حسب المدة المحددة. إذا حاب تعرف هل منتج معين داخل الاشتراك، اكتب اسمه هنا.', 'Premium gives you access to the subscription-included content during your active period. If you want to know whether a specific product is included, send its name here.');
-  if(/file|script|install|setup|تركيب|ملف|سكربت|error|bug|مشكلة|مايشتغل/.test(msg)) return answer('إذا عندك مشكلة تقنية في ملف أو سكربت: اكتب اسم المنتج، نوع المشكلة، وصورة أو نص الخطأ إن وجد. بهذه الطريقة يسهل على الدعم البشري متابعتها بسرعة.', 'If you have a technical issue with a file or script: send the product name, the issue type, and any screenshot or error text if available. That helps the human support team handle it faster.');
-  if(/hello|hi|hey|السلام|هلا|مرحبا/.test(msg)) return answer('هلا فيك! أنا المساعد الذكي للمتجر. اكتب اسم المنتج أو نوع المشكلة وسأوجهك مباشرة.', 'Welcome! I am the store AI assistant. Send the product name or the type of issue and I will guide you.');
-  return answer('تم استلام رسالتك. إذا كان الموضوع يتعلق بمنتج أو طلب، اكتب اسم المنتج أو رقم الطلب ليرد عليك المساعد الذكي بشكل أدق، وبعدها يقدر الدعم البشري يكمل معك إذا احتجت.', 'Your message was received. If this is about a product or an order, send the product name or order number for a more accurate AI reply, then human support can continue if needed.');
+  const answer=(a,e)=>ar?a:e;
+  if(!raw)return answer('هلا فيك، كيف أقدر أخدمك؟','Hi! How can I help you?');
+
+  // Greetings must be checked before every commercial intent. "السلام عليكم" contains the letters "كم".
+  if(/^(السلام|سلام|السلام عليكم|هلا|هلا والله|مرحبا|مرحباً|اهلين|أهلين|هاي|hello|hi|hey)(?:\s|$|[.!؟،])/i.test(msg) || /السلام عليكم/.test(msg)){
+    return answer('وعليكم السلام، هلا فيك في Eleven Store. كيف أقدر أخدمك اليوم؟','Hi! Welcome to Eleven Store. How can I help you today?');
+  }
+  if(/(شكرا|شكراً|يعطيك العافية|مشكور|تسلم|thanks|thank you)/i.test(msg)){
+    return answer('العفو، بالخدمة دائمًا. إذا احتجت أي شيء ثاني اكتب لي هنا.','You’re welcome. If you need anything else, just message me here.');
+  }
+  if(/(ابي موظف|ابغى موظف|أبي موظف|دعم بشري|شخص حقيقي|موظف الدعم|human|agent|staff)/i.test(msg)){
+    return answer('أكيد. أرسل تفاصيل طلبك هنا، ويقدر أحد أفراد الدعم يستلم المحادثة ويكمل معك.','Sure. Send the details here and a support member can take over the conversation.');
+  }
+  if(/(وين طلبي|حالة طلبي|رقم الطلب|طلباتي|order status|my order|where.*order)/i.test(msg)){
+    return answer('تقدر تراجع طلباتك من صفحة My Orders. إذا عندك رقم طلب معين ارسله هنا عشان يكون واضح لفريق الدعم.','You can check My Orders. If you have a specific order number, send it here so the support team can review it quickly.');
+  }
+  if(/(الدفع|تحويل|الايصال|الإيصال|فاتورة|checkout|payment|receipt|paid)/i.test(msg)){
+    return answer('إذا المشكلة في الدفع، تأكد أنك مسجل دخول بحساب Discord الصحيح ثم أكمل من السلة. إذا رفعت إيصال وتحس الطلب تأخر، ارسل رقم الطلب هنا.','For payment issues, make sure you are signed in with the correct Discord account and continue from the cart. If you already uploaded a receipt, send the order number here.');
+  }
+  if(/(^|[\s،,.؟?])(كم السعر|كم سعر|سعره|السعر|الأسعار|الاسعار|خصم|كوبون|coupon|discount|price|cost)(?=$|[\s،,.؟?!])/i.test(msg)){
+    return answer('الأسعار موحدة وواضحة داخل كل منتج. إذا تقصد منتج معين اكتب اسمه، وبالنسبة للكوبون تقدر تضيفه في السلة قبل الدفع.','Prices are shown on each product. Send the product name if you mean a specific item, and coupons can be applied in the cart before checkout.');
+  }
+  if(/(premium|premier|بريميوم|بريمير|اشتراك)/i.test(msg)){
+    return answer('إذا تقصد Premium، فهو اشتراك للمحتوى المشمول خلال مدة الاشتراك. اكتب اسم المنتج إذا حاب تعرف هل هو ضمن Premium أو لا.','Premium gives access to included content during the subscription period. Send the product name if you want to know whether it is included.');
+  }
+  if(/(تركيب|تثبيت|ما يشتغل|مايشتغل|خطأ|ايرور|error|bug|install|setup|script|سكربت|ملف)/i.test(msg)){
+    return answer('تمام. ارسل اسم المنتج ونص الخطأ أو صورة منه، واذكر نوع الكور عندك إذا كانت المشكلة بسكربت FiveM. كذا نقدر نحدد المشكلة أسرع.','Send the product name and the error text or screenshot. If it is a FiveM script, also mention your framework so the issue can be identified faster.');
+  }
+  if(/(كيف اشتري|طريقة الشراء|ابي اشتري|أبي اشتري|buy|purchase|how.*buy)/i.test(msg)){
+    return answer('اختار المنتج، أضفه للسلة، وبعدها كمل للدفع. تسجيل Discord مطلوب وقت الدفع فقط عشان نربط الطلب بحسابك.','Choose the product, add it to the cart, then continue to checkout. Discord login is required at checkout so the order is linked to your account.');
+  }
+  return answer('وصلتني رسالتك. عطِني تفاصيل أكثر عن اللي تحتاجه أو اسم المنتج، وإذا احتاج الموضوع تدخل بشري يقدر فريق الدعم يستلم المحادثة.','Got it. Send a little more detail or the product name. If needed, the human support team can take over the conversation.');
 }
 
 function computeStoreStats(){
@@ -271,6 +302,33 @@ app.get("/admin.html",(_req,res)=>res.redirect("/admin"));
 const DISCORD_CLIENT_ID=process.env.DISCORD_CLIENT_ID||"";
 const DISCORD_CLIENT_SECRET=process.env.DISCORD_CLIENT_SECRET||"";
 const DISCORD_REDIRECT_URI=process.env.DISCORD_REDIRECT_URI||"";
+const DISCORD_BOT_TOKEN=process.env.DISCORD_BOT_TOKEN||"";
+const DISCORD_GUILD_ID=process.env.DISCORD_GUILD_ID||"";
+const DISCORD_CUSTOMER_ROLE_ID=process.env.DISCORD_CUSTOMER_ROLE_ID||"";
+
+async function assignDiscordCustomerRole(discordId){
+  const userId=String(discordId||"").trim();
+  if(!/^\d{10,25}$/.test(userId))return {ok:false,skipped:true,reason:"Invalid Discord user ID"};
+  if(!DISCORD_BOT_TOKEN||!DISCORD_GUILD_ID||!DISCORD_CUSTOMER_ROLE_ID){
+    console.warn(`[DISCORD CUSTOMER ROLE] skipped for ${userId}: missing DISCORD_BOT_TOKEN / DISCORD_GUILD_ID / DISCORD_CUSTOMER_ROLE_ID`);
+    return {ok:false,skipped:true,reason:"Discord customer role is not configured"};
+  }
+  try{
+    const url=`https://discord.com/api/v10/guilds/${encodeURIComponent(DISCORD_GUILD_ID)}/members/${encodeURIComponent(userId)}/roles/${encodeURIComponent(DISCORD_CUSTOMER_ROLE_ID)}`;
+    const r=await fetch(url,{method:"PUT",headers:{Authorization:`Bot ${DISCORD_BOT_TOKEN}`,"Content-Length":"0"}});
+    if(r.status===204){
+      console.log(`[DISCORD CUSTOMER ROLE] assigned | user=${userId} | role=${DISCORD_CUSTOMER_ROLE_ID}`);
+      return {ok:true};
+    }
+    const body=await r.text().catch(()=>"");
+    console.error(`[DISCORD CUSTOMER ROLE] failed | user=${userId} | HTTP ${r.status} | ${body.slice(0,500)}`);
+    return {ok:false,status:r.status,reason:body||`HTTP ${r.status}`};
+  }catch(e){
+    console.error(`[DISCORD CUSTOMER ROLE] error | user=${userId}`,e);
+    return {ok:false,reason:e?.message||"Discord request failed"};
+  }
+}
+
 
 app.get("/auth/discord",(req,res)=>{
   if(!DISCORD_CLIENT_ID||!DISCORD_REDIRECT_URI)return res.status(503).send("Discord login is not configured.");
@@ -426,7 +484,7 @@ app.post("/api/support/message",(req,res)=>{
   let i=rows.findIndex(x=>x.id===token);
   const now=new Date().toISOString();
   if(i<0){
-    rows.push({id:token,customer:customerForSupport(req,token),status:"open",unreadAdmin:0,unreadCustomer:0,createdAt:now,updatedAt:now,messages:[]});
+    rows.push({id:token,customer:customerForSupport(req,token),status:"open",aiEnabled:String(process.env.SUPPORT_AI_ENABLED||"true").toLowerCase()!=="false",claimedBy:null,unreadAdmin:0,unreadCustomer:0,createdAt:now,updatedAt:now,messages:[]});
     i=rows.length-1;
   }
   const thread=rows[i];
@@ -434,7 +492,7 @@ app.post("/api/support/message",(req,res)=>{
   thread.status="open";
   const list=Array.isArray(thread.messages)?thread.messages:[];
   list.push({id:nextId(list),from:"customer",message,createdAt:now});
-  const aiReply=generateAiSupportReply(message);
+  const aiReply=(thread.aiEnabled!==false&&!thread.claimedBy)?generateAiSupportReply(message):"";
   if(aiReply){
     list.push({id:nextId(list),from:"ai",message:aiReply,createdAt:new Date(Date.parse(now)+450).toISOString()});
   }
@@ -447,7 +505,7 @@ app.post("/api/support/message",(req,res)=>{
 
 app.get("/api/admin/support",requireAdmin,(_req,res)=>{
   const rows=supportChats().sort((a,b)=>String(b.updatedAt||"").localeCompare(String(a.updatedAt||"")));
-  res.json(rows.map(t=>({id:t.id,customer:t.customer||{},status:t.status||"open",unreadAdmin:Number(t.unreadAdmin||0),unreadCustomer:Number(t.unreadCustomer||0),createdAt:t.createdAt,updatedAt:t.updatedAt,lastMessage:(Array.isArray(t.messages)&&t.messages.length?t.messages[t.messages.length-1].message:"")})));
+  res.json(rows.map(t=>({id:t.id,customer:t.customer||{},status:t.status||"open",aiEnabled:t.aiEnabled!==false,claimedBy:t.claimedBy||null,unreadAdmin:Number(t.unreadAdmin||0),unreadCustomer:Number(t.unreadCustomer||0),createdAt:t.createdAt,updatedAt:t.updatedAt,lastMessage:(Array.isArray(t.messages)&&t.messages.length?t.messages[t.messages.length-1].message:"")})));
 });
 
 app.get("/api/admin/support/:id",requireAdmin,(req,res)=>{
@@ -464,6 +522,7 @@ app.post("/api/admin/support/:id/messages",requireAdmin,requireAdminEdit,require
   const rows=supportChats(),i=rows.findIndex(x=>x.id===String(req.params.id||""));
   if(i<0)return res.status(404).json({message:"Conversation not found."});
   const now=new Date().toISOString(),thread=rows[i],list=Array.isArray(thread.messages)?thread.messages:[];
+  thread.claimedBy=thread.claimedBy||adminActor(req);thread.aiEnabled=false;
   list.push({id:nextId(list),from:"support",message,createdAt:now});
   thread.messages=list.slice(-300);thread.status="open";thread.unreadAdmin=0;thread.unreadCustomer=Number(thread.unreadCustomer||0)+1;thread.updatedAt=now;
   saveSupportChats(rows);
@@ -477,6 +536,18 @@ app.patch("/api/admin/support/:id/status",requireAdmin,requireAdminEdit,requireC
   if(i<0)return res.status(404).json({message:"Conversation not found."});
   rows[i].status=status;rows[i].updatedAt=new Date().toISOString();saveSupportChats(rows);
   res.json({ok:true,status});
+});
+
+app.patch("/api/admin/support/:id/control",requireAdmin,requireAdminEdit,requireCsrf,(req,res)=>{
+  const rows=supportChats(),i=rows.findIndex(x=>x.id===String(req.params.id||""));
+  if(i<0)return res.status(404).json({message:"Conversation not found."});
+  const thread=rows[i],action=String(req.body?.action||"");
+  if(action==="claim"){thread.claimedBy=adminActor(req);thread.aiEnabled=false;thread.status="open";}
+  else if(action==="release"){thread.claimedBy=null;}
+  else if(action==="ai"){thread.aiEnabled=Boolean(req.body?.enabled);if(thread.aiEnabled)thread.claimedBy=null;}
+  else return res.status(400).json({message:"Invalid support control action."});
+  thread.updatedAt=new Date().toISOString();saveSupportChats(rows);
+  res.json({ok:true,thread:{...publicSupportThread(thread),customer:thread.customer||{}}});
 });
 
 app.get("/api/admin/session",(req,res)=>{
@@ -504,6 +575,24 @@ app.patch("/api/admin/admin-access/:discordId",requireAdmin,requireOwner,require
   if(req.body?.canEdit!==undefined)rows[i].canEdit=req.body.canEdit===true;rows[i].updatedAt=new Date().toISOString();saveAdminAccessRows(rows);res.json(rows[i]);
 });
 app.get("/api/admin/products",requireAdmin,(_req,res)=>res.json(sorted(products())));
+
+
+app.get("/api/admin/reviews",requireAdmin,(_req,res)=>{
+  const ps=products(),all=commentStore(),out=[];
+  for(const p of ps){
+    const entry=getReviewsForProduct(p.id);
+    for(const r of entry.reviews)out.push({...publicReview(r),productId:p.id,productName:p.name});
+  }
+  out.sort((a,b)=>String(b.updatedAt||b.createdAt||"").localeCompare(String(a.updatedAt||a.createdAt||"")));
+  res.json(out);
+});
+app.delete("/api/admin/products/:productId/reviews/:reviewId",requireAdmin,requireAdminEdit,requireCsrf,(req,res)=>{
+  const productId=Number(req.params.productId),reviewId=String(req.params.reviewId||"");
+  const entry=getReviewsForProduct(productId),before=entry.reviews.length;
+  entry.reviews=entry.reviews.filter(r=>String(r.id)!==reviewId);
+  if(entry.reviews.length===before)return res.status(404).json({message:"Review not found."});
+  saveReviewsForProduct(productId,entry);res.json({ok:true,rating:getRatingSummary(productId)});
+});
 
 app.post("/api/admin/products",requireAdmin,requireAdminEdit,requireCsrf,upload.fields([{name:"image",maxCount:1},{name:"previewImages",maxCount:12}]),(req,res)=>{
   const rows=products(),name=String(req.body.name||"").trim(),slug=cleanSlug(req.body.slug||name),price=Number(req.body.price||0);
@@ -564,7 +653,7 @@ app.get("/api/admin/orders",requireAdmin,(req,res)=>{
   res.json(rows.filter(x=>status==="all"||x.status===status).sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||""))).map(hydrateOrderItems));
 });
 
-app.patch("/api/admin/orders/:id/status",requireAdmin,requireAdminEdit,requireCsrf,(req,res)=>{
+app.patch("/api/admin/orders/:id/status",requireAdmin,requireAdminEdit,requireCsrf,async(req,res)=>{
   const allowed=["processing","delivered"];
   const status=String(req.body?.status||"");
   if(!allowed.includes(status))return res.status(400).json({message:"Invalid order status."});
@@ -578,6 +667,12 @@ app.patch("/api/admin/orders/:id/status",requireAdmin,requireAdminEdit,requireCs
     const ps=products();
     const containsPremium=(rows[i].items||[]).some(it=>{const p=ps.find(pp=>Number(pp.id)===Number(it.productId));return (p&&isPremiumSubscriptionProduct(p))||/premium/i.test(String(it?.name||''))});
     if(containsPremium)setPremiumControl(rows[i].discord.id,true);
+    const roleResult=await assignDiscordCustomerRole(rows[i].discord.id);
+    rows[i].customerRoleAssigned=roleResult.ok===true;
+    rows[i].customerRoleUpdatedAt=new Date().toISOString();
+    if(!roleResult.ok)rows[i].customerRoleError=String(roleResult.reason||`HTTP ${roleResult.status||'error'}`).slice(0,300);
+    else delete rows[i].customerRoleError;
+    write(RECEIPT_LOGS,rows);
   }
   console.log(`[ORDER STATUS] ${rows[i].orderNumber} => ${status}`);
   res.json(rows[i]);
@@ -682,7 +777,7 @@ app.post("/api/checkout/bank-transfer",requireCustomerApi,receiptUpload.single("
   }
 });
 
-app.post("/api/checkout/free-order",requireCustomerApi,(req,res)=>{
+app.post("/api/checkout/free-order",requireCustomerApi,async(req,res)=>{
   try{
     if(!req.session?.discordUser)return res.status(401).json({message:"Connect your Discord account first."});
     const email=String(req.body.email||"").trim().toLowerCase();
@@ -702,8 +797,13 @@ app.post("/api/checkout/free-order",requireCustomerApi,(req,res)=>{
     const id=nextId(logs),orderNumber=`ES-${String(id).padStart(5,"0")}`;
     const entry={id,orderNumber,email,phone,discord:req.session.discordUser,subtotal:priced.subtotal,discount:priced.discount,coupon:priced.coupon,amount:0,currency:"SAR",items:normalized,receiptUrl:"",receiptFilename:"",status:"delivered",createdAt:new Date().toISOString(),deliveredAt:new Date().toISOString()};
     logs.push(entry);write(RECEIPT_LOGS,logs);
+    const roleResult=await assignDiscordCustomerRole(entry.discord.id);
+    entry.customerRoleAssigned=roleResult.ok===true;
+    entry.customerRoleUpdatedAt=new Date().toISOString();
+    if(!roleResult.ok)entry.customerRoleError=String(roleResult.reason||`HTTP ${roleResult.status||'error'}`).slice(0,300);
+    logs[logs.length-1]=entry;write(RECEIPT_LOGS,logs);
     console.log(`[PREMIUM FREE ORDER] ${orderNumber} | @${entry.discord.username} (${entry.discord.id})`);
-    return res.json({ok:true,orderNumber,amount:0,status:"delivered"});
+    return res.json({ok:true,orderNumber,amount:0,status:"delivered",customerRoleAssigned:entry.customerRoleAssigned});
   }catch(e){console.error('[PREMIUM FREE ORDER]',e);return res.status(500).json({message:'Could not create the free order.'})}
 });
 
@@ -751,7 +851,7 @@ app.post("/api/checkout/cart-session",requireCustomerApi,async(req,res)=>{
   }catch(e){console.error(e);res.status(500).json({message:"Unable to start checkout."})}
 });
 app.post("/api/payment/callback",(req,res)=>{console.log("Geidea callback",req.body);res.sendStatus(200)});
-app.get("/api/health",(_req,res)=>res.json({ok:true,paymentConfigured:Boolean(MPK&&APIP&&BASE)}));
+app.get("/api/health",(_req,res)=>res.json({ok:true,paymentConfigured:Boolean(MPK&&APIP&&BASE),discordCustomerRoleConfigured:Boolean(DISCORD_BOT_TOKEN&&DISCORD_GUILD_ID&&DISCORD_CUSTOMER_ROLE_ID)}));
 
 
 app.use((err,req,res,next)=>{
@@ -765,4 +865,4 @@ app.use((err,req,res,next)=>{
 });
 
 app.use((_req,res)=>res.status(404).send("Not found"));
-app.listen(PORT,()=>{console.log(`Eleven Store v6.4.0 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});
+app.listen(PORT,()=>{console.log(`Eleven Store v6.4.4 running: http://localhost:${PORT}`);console.log(`Admin: http://localhost:${PORT}/admin`)});

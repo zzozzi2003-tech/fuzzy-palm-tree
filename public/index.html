@@ -33,18 +33,26 @@
       <a class="header-pill discord-top-link" href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener">
         <span class="pill-dot"></span><span>DISCORD</span>
       </a>
-      <a class="header-pill account-login" id="customerLogin" href="/login">Login</a>
-      <button class="header-icon search-button" id="searchButton" type="button" aria-label="Search">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.35-4.35m2.35-5.15a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"/></svg>
-      </button>
+      <div class="profile-wrap" id="profileWrap">
+        <a class="profile-button" id="customerLogin" href="/login" aria-label="Account">
+          <span class="profile-avatar" id="profileAvatar"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7 8a7 7 0 0 0-14 0"/></svg></span>
+          <span class="profile-name" id="profileName">Login</span>
+        </a>
+        <div class="profile-menu hidden" id="profileMenu">
+          <div class="profile-menu-head"><b id="profileMenuName">Discord</b><small id="profileMenuStatus">Customer account</small></div>
+          <a href="/orders">My Orders</a>
+          <button id="profileLogout" type="button">Logout</button>
+        </div>
+      </div>
       <button class="cart-button" id="cartButton" type="button" aria-label="Cart">
-        <span class="cart-label">CART</span>
         <span class="cart-icon-wrap">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 4.5h2l1.7 9.1a2 2 0 0 0 2 1.65h7.95a2 2 0 0 0 1.95-1.55L20.5 7H6.1M9.5 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm7 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg>
           <b id="cartBadge">0</b>
         </span>
       </button>
-      <a class="header-pill customer-orders-link" href="/orders">طلباتي</a>
+      <button class="header-icon search-button" id="searchButton" type="button" aria-label="Search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.35-4.35m2.35-5.15a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"/></svg>
+      </button>
     </div>
   </div>
 </header>
@@ -136,7 +144,7 @@
     <header class="cart-header">
       <button class="cart-close" data-cart-close type="button" aria-label="Close cart">×</button>
       <div><span class="cart-eyebrow">ELEVEN CHECKOUT</span><h2 id="cartTitle">سلة التسوق</h2><small id="cartCountText">0 عنصر</small></div>
-      <div class="cart-header-icon"><span>CART</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 4.5h2l1.7 9.1a2 2 0 0 0 2 1.65h7.95a2 2 0 0 0 1.95-1.55L20.5 7H6.1M9.5 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm7 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg></div>
+      <div class="cart-header-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 4.5h2l1.7 9.1a2 2 0 0 0 2 1.65h7.95a2 2 0 0 0 1.95-1.55L20.5 7H6.1M9.5 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm7 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg></div>
     </header>
     <div class="cart-layout">
       <aside class="cart-summary-panel">

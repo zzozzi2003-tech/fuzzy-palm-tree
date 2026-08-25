@@ -19,8 +19,8 @@ function bindProductMotion(){
       const x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;
       card.style.setProperty('--card-x',`${(x*100).toFixed(1)}%`);
       card.style.setProperty('--card-y',`${(y*100).toFixed(1)}%`);
-      card.style.setProperty('--ry',`${((x-.5)*10.5).toFixed(2)}deg`);
-      card.style.setProperty('--rx',`${((.5-y)*8.2).toFixed(2)}deg`);
+      card.style.setProperty('--ry',`${((x-.5)*15).toFixed(2)}deg`);
+      card.style.setProperty('--rx',`${((.5-y)*11).toFixed(2)}deg`);
       card.style.setProperty('--lift',`${(1-Math.abs(.5-x)-Math.abs(.5-y)).toFixed(2)}`);
     },{passive:true});
     card.addEventListener('pointerleave',()=>{
@@ -40,7 +40,7 @@ function category(p){const tag=String(p.tag||'').toLowerCase();if(p.productType=
 function price(p){return Number(p.effectivePrice??p.price??0)}
 function rows(){let r=products.filter(p=>p.active!==false);if(filter!=='all')r=r.filter(p=>category(p)===filter);if(search)r=r.filter(p=>`${p.name} ${p.description||''} ${p.tag||''}`.toLowerCase().includes(search));if(sortMode==='price-low')r.sort((a,b)=>price(a)-price(b));else if(sortMode==='price-high')r.sort((a,b)=>price(b)-price(a));else r.sort((a,b)=>(Number(a.sortOrder||0)-Number(b.sortOrder||0))||(Number(b.id)-Number(a.id)));return r}
 function productUrl(p){return `/product/${encodeURIComponent(p.slug||p.id)}`}
-function productTypeLabel(p){const c=category(p);return c==='scripts'?'SCRIPT':c==='services'?'SERVICE':c==='subscription'?'PREMIUM':c==='mlo'?'MLO':'FILE'}
+function productTypeLabel(p){if(p.productType==='programming_service')return 'SERVICE';if(p.productType==='premium_subscription')return 'PREMIUM';const c=category(p);return c==='scripts'?'SCRIPT':'FILE'}
 function starLine(rating){
   const value=Math.max(0,Math.min(5,Number(rating||0)));
   return `<span class="card-stars" aria-label="${value.toFixed(1)} out of 5">${[1,2,3,4,5].map(i=>`<i class="${i<=Math.round(value)?'on':''}">★</i>`).join('')}</span>`;
@@ -48,7 +48,7 @@ function starLine(rating){
 function render(){
   const root=$('#products'),r=rows();
   root.innerHTML=r.map(p=>{
-    const rating=Number(p.rating?.average||0),reviews=Number(p.rating?.count||0),isFree=price(p)===0;
+    const rating=Number(p.rating?.average||0),reviews=Number(p.rating?.count||0),isService=p.productType==='programming_service',isFree=price(p)===0;
     return `<article class="product-card">
       <a class="product-image" href="${productUrl(p)}">
         <img class="${p.image?'':'fallback'}" src="${p.image||'/assets/eleven-logo.png'}" alt="${String(p.name).replaceAll('"','&quot;')}">
@@ -59,8 +59,8 @@ function render(){
         <a class="product-name" href="${productUrl(p)}">${p.name}</a>
         <p class="product-excerpt">${String(p.shortDescription||p.description||'Premium FiveM-ready content for your server.').replace(/<[^>]*>/g,' ').slice(0,90)}</p>
         <div class="product-rating">${starLine(rating)}<span>${reviews?`${rating.toFixed(1)} (${reviews})`:(lang==='ar'?'بدون تقييم':'No ratings yet')}</span></div>
-        <div class="product-bottom"><strong class="product-price">${isFree?(lang==='ar'?'مجاني':'FREE'):money(price(p))}</strong><a class="details-button" href="${productUrl(p)}">${lang==='ar'?'التفاصيل':'Details'}</a></div>
-        <button class="add-button" data-id="${p.id}">${t('add')}</button>
+        <div class="product-bottom"><strong class="product-price">${isService?(lang==='ar'?'اختر خطتك':'CHOOSE PLAN'):isFree?(lang==='ar'?'مجاني':'FREE'):money(price(p))}</strong><a class="details-button" href="${productUrl(p)}">${lang==='ar'?'التفاصيل':'Details'}</a></div>
+        <button class="add-button" data-id="${p.id}">${isService?(lang==='ar'?'اختر خطتك':'CHOOSE PLAN'):t('add')}</button>
       </div>
     </article>`
   }).join('')||`<div class="empty-state">${t('empty')}</div>`;
@@ -80,7 +80,25 @@ function openCart(){renderCart();$('#cartModal').classList.remove('hidden')}
 function setFilter(v){filter=v;$$('[data-filter]').forEach(x=>x.classList.toggle('active',x.dataset.filter===v));$$('[data-filter-button]').forEach(x=>x.classList.toggle('active',x.dataset.filterButton===v));render()}
 function applyLang(){document.documentElement.lang=lang;document.documentElement.dir=lang==='ar'?'rtl':'ltr';document.body.classList.toggle('en',lang==='en');const nav=$$('.nav-main a');if(nav[0])nav[0].textContent=t('home');if(nav[1])nav[1].textContent=t('files');if(nav[2])nav[2].textContent=t('scripts');if(nav[3])nav[3].textContent=t('all');if($('#latestTitle'))$('#latestTitle').textContent=t('latest');if($('#sectionSub'))$('#sectionSub').textContent=t('sectionSub');if($('#searchInput'))$('#searchInput').placeholder=t('search');if($('#cartTitle'))$('#cartTitle').textContent=t('cart');if($('#couponLabel'))$('#couponLabel').textContent=t('coupon');if($('#couponApply'))$('#couponApply').textContent=t('apply');if($('#summaryTitle'))$('#summaryTitle').textContent=t('summary');if($('#subtotalLabel'))$('#subtotalLabel').textContent=t('subtotal');if($('#totalLabel'))$('#totalLabel').textContent=t('total');if($('#checkoutButton'))$('#checkoutButton').textContent=t('checkout');if($('.customer-orders-link'))$('.customer-orders-link').textContent=t('orders');if($('#heroBadge'))$('#heroBadge').textContent=t('heroBadge');if($('#heroTitle'))$('#heroTitle').innerHTML=t('heroTitle');if($('#heroText'))$('#heroText').textContent=t('heroText');if($('#browseBtn'))$('#browseBtn').innerHTML=t('browse');if($('#heroSupport'))$('#heroSupport').textContent=t('talk');const chips=$$('[data-filter-button]');if(chips[0])chips[0].textContent=lang==='ar'?'الكل':'All';if(chips[1])chips[1].textContent=t('files');if(chips[2])chips[2].textContent=t('scripts');if($('#langBtn'))$('#langBtn').innerHTML=`<span class="lang-dot">${lang==='ar'?'AR':'EN'}</span><span>${lang==='ar'?'العربية':'English'}</span><i>⌃</i>`;updateShowcaseCount();render()}
 
-async function loadCustomerLogin(){try{const r=await fetch('/api/auth/discord');const d=await r.json();const a=$('#customerLogin');if(!a)return;if(d.connected){a.textContent=`@${d.user.username}${d.premiumActive?' · PREMIUM':''}`;a.href='/orders';a.title='My account'}else{a.textContent=lang==='ar'?'تسجيل الدخول':'Login';a.href='/login'}}catch{}}
-async function init(){products=await fetch('/api/products').then(r=>r.json());if($('#heroProducts'))$('#heroProducts').textContent=products.length;fetch('/api/store-stats').then(r=>r.json()).then(s=>{if($('#heroCustomers'))$('#heroCustomers').textContent=Number(s.totalUsers||0)}).catch(()=>{});updateCartBadge();render();applyLang();loadCustomerLogin();if($('#sortSelect'))$('#sortSelect').onchange=e=>{sortMode=e.target.value;render()};$$('[data-filter]').forEach(a=>a.onclick=e=>{const f=a.dataset.filter;if(!f)return;e.preventDefault();setFilter(f);document.querySelector('#products').scrollIntoView({behavior:'smooth'})});$$('[data-filter-button]').forEach(b=>b.onclick=()=>setFilter(b.dataset.filterButton));if($('#cartButton'))$('#cartButton').onclick=openCart;$$('[data-cart-close]').forEach(x=>x.onclick=()=>$('#cartModal').classList.add('hidden'));if($('#couponApply'))$('#couponApply').onclick=()=>{const code=$('#couponInput').value.trim().toUpperCase();if(code)localStorage.setItem('eleven_coupon',code);else localStorage.removeItem('eleven_coupon');refreshCartCoupon(true)};if($('#checkoutButton'))$('#checkoutButton').onclick=()=>location.href='/checkout';if($('#searchButton'))$('#searchButton').onclick=()=>{$('#searchBar').classList.toggle('hidden');if(!$('#searchBar').classList.contains('hidden'))$('#searchInput').focus()};if($('#closeSearch'))$('#closeSearch').onclick=()=>$('#searchBar').classList.add('hidden');if($('#searchInput'))$('#searchInput').oninput=e=>{search=e.target.value.toLowerCase().trim();render()};if($('#langBtn'))$('#langBtn').onclick=e=>{e.stopPropagation();$('#langMenu').classList.toggle('hidden')};$$('#langMenu button').forEach(b=>b.onclick=()=>{lang=b.dataset.lang;localStorage.setItem('eleven_lang',lang);$('#langMenu').classList.add('hidden');applyLang()});document.addEventListener('click',e=>{if(!e.target.closest('.lang-wrap'))$('#langMenu').classList.add('hidden')})}
+async function loadCustomerLogin(){
+  try{
+    const r=await fetch('/api/auth/discord'),d=await r.json(),a=$('#customerLogin'),avatar=$('#profileAvatar'),name=$('#profileName'),menu=$('#profileMenu');
+    if(!a)return;
+    if(d.connected){
+      const u=d.user||{},display=u.globalName||u.username||'Discord';
+      name.textContent=display;
+      if(u.avatar&&u.id)avatar.innerHTML=`<img src="https://cdn.discordapp.com/avatars/${encodeURIComponent(u.id)}/${encodeURIComponent(u.avatar)}.png?size=96" alt="">`;
+      else avatar.textContent=display.slice(0,1).toUpperCase();
+      $('#profileMenuName').textContent=display;
+      $('#profileMenuStatus').textContent=d.premiumActive?'Premium active':'Customer account';
+      a.href='#';
+      a.onclick=e=>{e.preventDefault();e.stopPropagation();menu.classList.toggle('hidden')};
+      const logout=$('#profileLogout');if(logout)logout.onclick=async()=>{await fetch('/api/auth/logout',{method:'POST'});location.href='/'};
+    }else{
+      name.textContent=lang==='ar'?'تسجيل الدخول':'Login';a.href='/login';a.onclick=null;menu?.classList.add('hidden');
+    }
+  }catch{}
+}
+async function init(){products=await fetch('/api/products').then(r=>r.json());if($('#heroProducts'))$('#heroProducts').textContent=products.length;fetch('/api/store-stats').then(r=>r.json()).then(s=>{if($('#heroCustomers'))$('#heroCustomers').textContent=Number(s.totalUsers||0)}).catch(()=>{});updateCartBadge();render();applyLang();loadCustomerLogin();if($('#sortSelect'))$('#sortSelect').onchange=e=>{sortMode=e.target.value;render()};$$('[data-filter]').forEach(a=>a.onclick=e=>{const f=a.dataset.filter;if(!f)return;e.preventDefault();setFilter(f);document.querySelector('#products').scrollIntoView({behavior:'smooth'})});$$('[data-filter-button]').forEach(b=>b.onclick=()=>setFilter(b.dataset.filterButton));if($('#cartButton'))$('#cartButton').onclick=openCart;$$('[data-cart-close]').forEach(x=>x.onclick=()=>$('#cartModal').classList.add('hidden'));if($('#couponApply'))$('#couponApply').onclick=()=>{const code=$('#couponInput').value.trim().toUpperCase();if(code)localStorage.setItem('eleven_coupon',code);else localStorage.removeItem('eleven_coupon');refreshCartCoupon(true)};if($('#checkoutButton'))$('#checkoutButton').onclick=()=>location.href='/checkout';if($('#searchButton'))$('#searchButton').onclick=()=>{$('#searchBar').classList.toggle('hidden');if(!$('#searchBar').classList.contains('hidden'))$('#searchInput').focus()};if($('#closeSearch'))$('#closeSearch').onclick=()=>$('#searchBar').classList.add('hidden');if($('#searchInput'))$('#searchInput').oninput=e=>{search=e.target.value.toLowerCase().trim();render()};if($('#langBtn'))$('#langBtn').onclick=e=>{e.stopPropagation();$('#langMenu').classList.toggle('hidden')};$$('#langMenu button').forEach(b=>b.onclick=()=>{lang=b.dataset.lang;localStorage.setItem('eleven_lang',lang);$('#langMenu').classList.add('hidden');applyLang()});document.addEventListener('click',e=>{if(!e.target.closest('.lang-wrap'))$('#langMenu').classList.add('hidden');if(!e.target.closest('.profile-wrap')&&$('#profileMenu'))$('#profileMenu').classList.add('hidden')})}
 initPointerMotion();
 init().catch(console.error);

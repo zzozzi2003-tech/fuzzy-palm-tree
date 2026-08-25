@@ -11,3 +11,12 @@ DISCORD_CLIENT_SECRET=CHANGE_ME_DISCORD_CLIENT_SECRET
 DISCORD_REDIRECT_URI=https://eleven-store-sa.onrender.com/auth/discord/callback
 
 PORT is provided automatically by Render, so you normally do not need to add PORT there.
+
+# Discord automatic Customer role after a completed purchase.
+# Bot must be in the server, have Manage Roles, and its highest role must be above the Customer role.
+DISCORD_BOT_TOKEN=CHANGE_ME_DISCORD_BOT_TOKEN
+DISCORD_GUILD_ID=CHANGE_ME_DISCORD_GUILD_ID
+DISCORD_CUSTOMER_ROLE_ID=CHANGE_ME_CUSTOMER_ROLE_ID
+
+# Support assistant (per-chat can also be controlled from Admin)
+SUPPORT_AI_ENABLED=true

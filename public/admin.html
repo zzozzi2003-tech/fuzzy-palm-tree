@@ -41,7 +41,7 @@
         <p>Manage products, orders, coupons, support and staff access.</p>
         <div id="adminIdentity" class="admin-identity"></div>
       </div>
-      <div class="dash-actions"><button id="showAdminAccess" class="ghost-btn hidden">Admin Access <b id="adminPendingBadge" class="support-unread hidden">0</b></button><button id="showCoupons" class="ghost-btn">Coupons</button><button id="showPremium" class="ghost-btn">Premium Members</button><button id="showSupport" class="ghost-btn support-admin-btn">Support Chat <b id="supportUnreadBadge" class="support-unread hidden">0</b></button><button id="showNotifications" class="ghost-btn">Notify Members</button><button id="showOrders" class="ghost-btn">Orders</button><button id="showReceiptLogs" class="ghost-btn">Payment Logs</button><button id="newProduct" class="primary-btn">Add Product</button></div>
+      <div class="dash-actions"><button id="showAdminAccess" class="ghost-btn hidden">Admin Access <b id="adminPendingBadge" class="support-unread hidden">0</b></button><button id="showCoupons" class="ghost-btn">Coupons</button><button id="showPremium" class="ghost-btn">Premium Members</button><button id="showReviews" class="ghost-btn">Reviews</button><button id="showSupport" class="ghost-btn support-admin-btn">Support Chat <b id="supportUnreadBadge" class="support-unread hidden">0</b></button><button id="showNotifications" class="ghost-btn">Notify Members</button><button id="showOrders" class="ghost-btn">Orders</button><button id="showReceiptLogs" class="ghost-btn">Payment Logs</button><button id="newProduct" class="primary-btn">Add Product</button></div>
     </div>
 
     <div class="stats">
@@ -57,6 +57,12 @@
 <label>Target Discord ID <span>(optional)</span><input id="notificationTarget" placeholder="Leave empty to notify everyone"></label>
 <button class="primary-btn">Send Notification</button><small id="notificationResult"></small>
 </form><div id="notificationHistory" class="notification-history"></div></section>
+
+
+<section id="reviewsAdminSection" class="reviews-admin-section hidden">
+  <div class="logs-head"><div><span class="eyebrow">REVIEWS</span><h2>Customer Reviews</h2><p>Discord-verified ratings and comments. Admins with edit access can remove reviews.</p></div><button id="closeReviewsAdmin" class="ghost-btn">Close</button></div>
+  <div id="reviewsAdminList" class="reviews-admin-list"></div>
+</section>
 
 <section id="supportSection" class="support-section hidden">
   <div class="logs-head"><div><span class="eyebrow">LIVE SUPPORT</span><h2>Technical Support Chat</h2></div><button id="closeSupport" class="ghost-btn">Close</button></div>
