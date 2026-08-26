@@ -262,7 +262,7 @@ function toggleServicePricing(){
 }
 $("#productType").addEventListener("change",toggleServicePricing);
 
-async function loadReceiptLogs(){clearInterval(supportPoll);supportPoll=null;try{const logs=await api("/api/admin/receipt-logs");$("#receiptLogs").innerHTML=logs.map(log=>`<article class="receipt-log-card"><div><span class="log-status">${esc(log.status||"receipt_uploaded")}</span><h3>Order #${esc(log.orderNumber||String(log.id))}</h3><p>${esc(log.customer||"No contact")} · ${esc(log.createdAt||"")}</p></div><div class="log-total">SAR ${Number(log.amount||0).toLocaleString("en-US",{maximumFractionDigits:2})}</div><a class="action-btn" href="${esc(log.receiptUrl||"#")}" target="_blank" rel="noopener">View Receipt</a></article>`).join("")||'<div class="empty-admin">No receipt logs yet.</div>';$("#receiptLogsSection").classList.remove("hidden");$("#premiumSection").classList.add("hidden");$("#supportSection").classList.add("hidden");$("#productList").classList.add("hidden")}catch(e){alert(e.message)}}$("#showReceiptLogs").addEventListener("click",loadReceiptLogs);$("#closeReceiptLogs").addEventListener("click",()=>{$("#receiptLogsSection").classList.add("hidden");$("#productList").classList.remove("hidden")});
+async function loadReceiptLogs(){clearInterval(supportPoll);supportPoll=null;try{const logs=await api("/api/admin/receipt-logs");$("#receiptLogs").innerHTML=logs.map(log=>`<article class="receipt-log-card"><div><span class="log-status">${esc(log.status||"receipt_uploaded")}</span><h3>Order #${esc(log.orderNumber||String(log.id))}</h3><p>${esc(log.customer||"No contact")} · ${esc(log.createdAt||"")}</p></div><div class="log-total">SAR ${Number(log.amount||0).toLocaleString("en-US",{maximumFractionDigits:2})}</div>${log.receiptUrl?`<a class="action-btn" href="${esc(log.receiptUrl)}" target="_blank" rel="noopener">View Receipt</a>`:log.paymentMethod==='paypal'?`<span class="action-btn">PayPal ${esc(log.paypalCurrency||'')} ${Number(log.paypalAmount||0).toLocaleString('en-US',{maximumFractionDigits:2})}</span>`:''}</article>`).join("")||'<div class="empty-admin">No receipt logs yet.</div>';$("#receiptLogsSection").classList.remove("hidden");$("#premiumSection").classList.add("hidden");$("#supportSection").classList.add("hidden");$("#productList").classList.add("hidden")}catch(e){alert(e.message)}}$("#showReceiptLogs").addEventListener("click",loadReceiptLogs);$("#closeReceiptLogs").addEventListener("click",()=>{$("#receiptLogsSection").classList.add("hidden");$("#productList").classList.remove("hidden")});
 
 let currentOrderFilter="processing";
 async function loadOrders(filter=currentOrderFilter){
@@ -277,6 +277,7 @@ async function loadOrders(filter=currentOrderFilter){
         <p>${esc(o.email||"")} · ${esc(o.phone||"")}</p>
         <p>Discord: <strong>@${esc(o.discord?.username||"not-linked")}</strong> ${o.discord?.id?`(${esc(o.discord.id)})`:""}</p>
         <p>${esc(o.createdAt||"")}</p>
+        ${o.paymentMethod==='paypal'?`<p>Payment: <strong>PayPal</strong> · ${esc(o.paypalCurrency||'')} ${Number(o.paypalAmount||0).toLocaleString('en-US',{maximumFractionDigits:2})} · ${esc(o.paypalOrderId||'')}</p>`:''}
       </div>
       <div class="log-total">SAR ${Number(o.amount||0).toLocaleString("en-US",{maximumFractionDigits:2})}</div>
       <div class="order-products">

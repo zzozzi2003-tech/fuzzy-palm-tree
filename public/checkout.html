@@ -66,8 +66,16 @@
       </section>
 
       <section class="form-section payment-section">
-        <div class="section-heading"><span class="section-number">02</span><div><h2 id="paymentHeading">Bank transfer</h2><p id="paymentSub">Transfer the exact amount, then upload the receipt.</p></div></div>
+        <div class="section-heading"><span class="section-number">02</span><div><h2 id="paymentHeading">Secure payment</h2><p id="paymentSub">Pay instantly with PayPal or use bank transfer.</p></div></div>
         <div id="paymentArea" class="payment-area locked">
+          <div class="paypal-panel" id="paypalBox">
+            <div class="paypal-panel-head"><div><span>PAYPAL</span><b>Instant secure checkout</b></div><strong>PAY NOW</strong></div>
+            <p class="paypal-copy">Pay with your PayPal account or an eligible payment method offered by PayPal. Your order is marked delivered automatically after PayPal confirms the capture.</p>
+            <div id="paypalAmountNote" class="paypal-amount-note">Loading PayPal...</div>
+            <div id="paypal-button-container" class="paypal-button-container"></div>
+            <div id="paypalStatus" class="paypal-status hidden"></div>
+          </div>
+
           <div class="bank-panel" id="bankBox">
             <div class="bank-panel-head"><span>BANK TRANSFER</span><b>Manual verification</b></div>
             <div class="bank-image-wrap"><img src="/assets/bank-transfer.png" alt="Bank transfer details" class="bank-image"></div>

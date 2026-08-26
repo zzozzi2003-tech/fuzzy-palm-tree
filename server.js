@@ -192,12 +192,12 @@ app.use(helmet({
   contentSecurityPolicy:{
     directives:{
       defaultSrc:["'self'"],
-      scriptSrc:["'self'","https://www.ksamerchant.geidea.net"],
+      scriptSrc:["'self'","https://www.ksamerchant.geidea.net","https://www.paypal.com","https://www.sandbox.paypal.com"],
       styleSrc:["'self'","'unsafe-inline'","https://fonts.googleapis.com"],
       fontSrc:["'self'","https://fonts.gstatic.com","data:"],
-      imgSrc:["'self'","data:","blob:"],
-      connectSrc:["'self'","https://api.ksamerchant.geidea.net"],
-      frameSrc:["'self'","https://www.ksamerchant.geidea.net"],
+      imgSrc:["'self'","data:","blob:","https://www.paypalobjects.com","https://*.paypalobjects.com","https://www.paypal.com","https://*.paypal.com"],
+      connectSrc:["'self'","https://api.ksamerchant.geidea.net","https://www.paypal.com","https://www.sandbox.paypal.com","https://api-m.paypal.com","https://api-m.sandbox.paypal.com"],
+      frameSrc:["'self'","https://www.ksamerchant.geidea.net","https://www.paypal.com","https://www.sandbox.paypal.com"],
       objectSrc:["'none'"],
       baseUri:["'self'"]
     }
@@ -444,152 +444,9 @@ app.use("/uploads",serveSupabaseUpload);
 ["store.css","commerce.css","checkout.css","login.css","admin.css","orders.css","product.css","support-chat.css","store-config.js","shop.js","cart.js","checkout.js","login.js","admin.js","orders.js","product.js","support-chat.js"].forEach(file=>{
   app.get("/"+file,(_req,res)=>res.sendFile(path.join(PUBLIC,file)));
 });
-function escapeMeta(value){
-  return String(value??"")
-    .replace(/&/g,"&amp;")
-    .replace(/"/g,"&quot;")
-    .replace(/</g,"&lt;")
-    .replace(/>/g,"&gt;");
-}
-function requestOrigin(req){
-  const configured=String(process.env.PUBLIC_BASE_URL||process.env.SITE_URL||"").trim().replace(/\/$/,"");
-  if(configured)return configured;
-  const forwarded=String(req.headers["x-forwarded-proto"]||"").split(",")[0].trim();
-  const protocol=forwarded||req.protocol||"https";
-  return `${protocol}://${req.get("host")}`;
-}
-function absolutePreviewUrl(req,value,fallback="/assets/discord-preview.png"){
-  const raw=String(value||fallback||"").trim();
-  try{return new URL(raw,requestOrigin(req)+"/").href}catch{}
-  return `${requestOrigin(req)}${raw.startsWith("/")?raw:"/"+raw}`;
-}
-function stripSocialMeta(html){
-  return String(html)
-    .replace(/<meta\s+[^>]*(?:property|name)=["'](?:og:[^"']+|twitter:[^"']+)["'][^>]*>\s*/gi,"")
-    .replace(/<meta\s+[^>]*name=["']theme-color["'][^>]*>\s*/gi,"");
-}
-function injectSocialMeta(html,{title,description,image,url,type="website"}){
-  const clean=stripSocialMeta(html);
-  const safeTitle=escapeMeta(title||"Eleven Store");
-  const safeDesc=escapeMeta(description||"Premium FiveM scripts and files from Eleven Store.");
-  const safeImage=escapeMeta(image||"");
-  const safeUrl=escapeMeta(url||"");
-  // Keep preview metadata at the very beginning of <head>. Some link-preview
-  // crawlers only inspect the first part of a document before giving up.
-  const tags=`\n<meta charset="utf-8">\n<meta property="og:type" content="${escapeMeta(type)}">\n<meta property="og:site_name" content="Eleven Store">\n<meta property="og:title" content="${safeTitle}">\n<meta property="og:description" content="${safeDesc}">\n<meta property="og:url" content="${safeUrl}">\n<meta property="og:image" content="${safeImage}">\n<meta property="og:image:secure_url" content="${safeImage}">\n<meta property="og:image:alt" content="${safeTitle}">\n<meta name="twitter:card" content="summary_large_image">\n<meta name="twitter:title" content="${safeTitle}">\n<meta name="twitter:description" content="${safeDesc}">\n<meta name="twitter:image" content="${safeImage}">\n<meta name="theme-color" content="#55bdf4">\n`;
-  if(/<head(?:\s[^>]*)?>/i.test(clean)) return clean.replace(/<head(\s[^>]*)?>/i,m=>m+tags);
-  return tags+clean;
-}
-function sendPageWithPreview(req,res,fileName,meta){
-  try{
-    const html=fs.readFileSync(path.join(PUBLIC,fileName),"utf8");
-    res.type("html").send(injectSocialMeta(html,meta));
-  }catch(e){
-    console.error("[LINK PREVIEW] page render failed:",e.message||e);
-    res.sendFile(path.join(PUBLIC,fileName));
-  }
-}
-
-app.get("/",(req,res)=>{
-  const origin=requestOrigin(req);
-  res.set("Cache-Control","public, max-age=0, must-revalidate");
-  sendPageWithPreview(req,res,"index.html",{
-    title:"Eleven Store",
-    description:"Premium FiveM scripts, systems and custom files.",
-    image:absolutePreviewUrl(req,"/assets/discord-preview.png"),
-    url:origin+"/"
-  });
-});
+app.get("/",(_req,res)=>res.sendFile(path.join(PUBLIC,"index.html")));
 app.get("/cart",(_req,res)=>res.sendFile(path.join(PUBLIC,"cart.html")));
-function normalizedProductSlug(value){
-  let v=String(value||"").trim();
-  try{v=decodeURIComponent(v)}catch{}
-  return v.toLowerCase().replace(/^\/+|\/+$/g,"");
-}
-function prettySlug(value){
-  return normalizedProductSlug(value).split("-").filter(Boolean).map(x=>x.charAt(0).toUpperCase()+x.slice(1)).join(" ")||"Product";
-}
-function productBySlug(slug){
-  const key=normalizedProductSlug(slug);
-  const rows=products();
-  return rows.find(p=>normalizedProductSlug(p?.slug)===key)
-    || rows.find(p=>normalizedProductSlug(p?.name).replace(/\s+/g,"-")===key);
-}
-async function sendPreviewImage(req,res){
-  try{
-    const product=productBySlug(req.params.slug);
-    const candidate=String(product?.image||(Array.isArray(product?.previewImages)&&product.previewImages[0])||"/assets/discord-preview.png").trim();
-    res.set("Cache-Control","public, max-age=3600");
-    res.set("Access-Control-Allow-Origin","*");
-
-    if(candidate.startsWith("/uploads/")){
-      const objectPath=candidate.replace(/^\/uploads\//,"");
-      if(SUPABASE_ENABLED){
-        const r=await fetch(storageObjectUrl(objectPath),{headers:sbHeaders()});
-        if(r.ok){
-          const buf=Buffer.from(await r.arrayBuffer());
-          const type=r.headers.get("content-type")||"image/png";
-          res.set("Content-Type",type);
-          res.set("Content-Length",String(buf.length));
-          return res.status(200).send(buf);
-        }
-      }
-      const local=path.join(UPLOADS,objectPath);
-      if(fs.existsSync(local)) return res.sendFile(local);
-    }
-
-    if(candidate.startsWith("/assets/")){
-      const local=path.join(PUBLIC,candidate.replace(/^\//,""));
-      if(fs.existsSync(local)) return res.sendFile(local);
-    }
-
-    if(/^https?:\/\//i.test(candidate)){
-      const r=await fetch(candidate,{headers:{"User-Agent":"ElevenStorePreview/1.0"}});
-      if(r.ok){
-        const buf=Buffer.from(await r.arrayBuffer());
-        const type=r.headers.get("content-type")||"image/png";
-        res.set("Content-Type",type);
-        res.set("Content-Length",String(buf.length));
-        return res.status(200).send(buf);
-      }
-    }
-
-    const fallback=path.join(PUBLIC,"assets","discord-preview.png");
-    if(fs.existsSync(fallback)) return res.sendFile(fallback);
-    return res.status(404).end();
-  }catch(e){
-    console.error("[LINK PREVIEW] image proxy failed:",e.message||e);
-    const fallback=path.join(PUBLIC,"assets","discord-preview.png");
-    if(fs.existsSync(fallback)) return res.sendFile(fallback);
-    return res.status(404).end();
-  }
-}
-app.get("/discord/product-image/:slug",sendPreviewImage);
-
-app.get("/product/:slug",(req,res)=>{
-  const slug=String(req.params.slug||"").trim();
-  const product=productBySlug(slug);
-
-  // Always return HTTP 200 with OG tags so Discord can build an embed.
-  const name=String(product?.name||prettySlug(slug)).trim();
-  const price=Number(product?.price||0);
-  const priceText=Number.isFinite(price)&&price>0?`${price} SAR`:"";
-  const bodyDescription=String(product?.description||"Premium FiveM script available on Eleven Store.")
-    .replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim().slice(0,220);
-  const description=priceText?`${priceText} • ${bodyDescription}`:bodyDescription;
-  const previewImageUrl=`${requestOrigin(req)}/discord/product-image/${encodeURIComponent(slug)}`;
-
-  res.status(200);
-  res.set("Cache-Control","public, max-age=0, must-revalidate");
-  res.set("X-Robots-Tag","all");
-  sendPageWithPreview(req,res,"product.html",{
-    title:name,
-    description,
-    image:previewImageUrl,
-    url:`${requestOrigin(req)}/product/${encodeURIComponent(slug)}`,
-    type:"product"
-  });
-});
+app.get("/product/:slug",(_req,res)=>res.sendFile(path.join(PUBLIC,"product.html")));
 app.get("/orders",(_req,res)=>res.sendFile(path.join(PUBLIC,"orders.html")));
 app.get("/login",(req,res)=>{const next=safeNextPath(req.query.next||"/");if(req.session?.discordUser)return res.redirect(next);res.sendFile(path.join(PUBLIC,"login.html"))});
 app.get("/checkout",(req,res)=>{if(!req.session?.discordUser)return res.redirect(`/login?next=${encodeURIComponent('/checkout')}`);res.sendFile(path.join(PUBLIC,"checkout.html"))});
@@ -1108,6 +965,202 @@ const MPK=process.env.GEIDEA_MERCHANT_PUBLIC_KEY||"",APIP=process.env.GEIDEA_API
 function ts(){const d=new Date(),p=n=>String(n).padStart(2,"0");return `${d.getUTCFullYear()}/${p(d.getUTCMonth()+1)}/${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`}
 function sig(amount,currency,ref,timestamp){return crypto.createHmac("sha256",APIP).update(`${MPK}${Number(amount).toFixed(2)}${currency}${ref}${timestamp}`).digest("base64")}
 async function geidea(amount,ref,orderItems){const timestamp=ts(),body={amount:Number(amount),currency:"SAR",timestamp,merchantReferenceId:ref,signature:sig(amount,"SAR",ref,timestamp),paymentOperation:"Pay",language:"en",callbackUrl:`${BASE}/api/payment/callback`,returnUrl:`${BASE}/payment-success`,expressCheckouts:[{wallet:"apple-pay",label:"Apple Pay"}],order:{orderItems}},auth=Buffer.from(`${MPK}:${APIP}`).toString("base64");const r=await fetch(GEIDEA,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json","Authorization":`Basic ${auth}`},body:JSON.stringify(body)});return {r,d:await r.json().catch(()=>({}))}}
+
+
+// -----------------------------------------------------------------------------
+// PayPal Checkout (Orders v2)
+// Store prices remain in SAR. PayPal REST does not support SAR as a transaction
+// currency, so the amount is converted server-side to PAYPAL_CURRENCY (USD by
+// default). PAYPAL_SAR_PER_UNIT means how many SAR equal 1 PayPal currency unit.
+// For USD, the default is 3.75 SAR per USD.
+// -----------------------------------------------------------------------------
+const PAYPAL_CLIENT_ID=String(process.env.PAYPAL_CLIENT_ID||"").trim();
+const PAYPAL_CLIENT_SECRET=String(process.env.PAYPAL_CLIENT_SECRET||"").trim();
+const PAYPAL_MODE=String(process.env.PAYPAL_MODE||"sandbox").trim().toLowerCase()==="live"?"live":"sandbox";
+const PAYPAL_CURRENCY=String(process.env.PAYPAL_CURRENCY||"USD").trim().toUpperCase();
+const PAYPAL_SAR_PER_UNIT=Number(process.env.PAYPAL_SAR_PER_UNIT||3.75);
+const PAYPAL_ALLOWED_CURRENCIES=new Set(["AUD","BRL","CAD","CNY","CZK","DKK","EUR","HKD","HUF","ILS","JPY","MYR","MXN","TWD","NZD","NOK","PHP","PLN","GBP","RUB","SGD","SEK","CHF","THB","USD"]);
+const PAYPAL_API_BASE=PAYPAL_MODE==="live"?"https://api-m.paypal.com":"https://api-m.sandbox.paypal.com";
+let paypalTokenCache={token:"",expiresAt:0};
+
+function paypalConfigured(){return Boolean(PAYPAL_CLIENT_ID&&PAYPAL_CLIENT_SECRET&&PAYPAL_ALLOWED_CURRENCIES.has(PAYPAL_CURRENCY)&&Number.isFinite(PAYPAL_SAR_PER_UNIT)&&PAYPAL_SAR_PER_UNIT>0)}
+function paypalAmountFromSar(amountSar){
+  const amount=Number(amountSar||0)/PAYPAL_SAR_PER_UNIT;
+  if(!Number.isFinite(amount)||amount<=0)throw new Error("Invalid PayPal amount.");
+  return amount.toFixed(PAYPAL_CURRENCY==="JPY"?0:2);
+}
+function requestBaseUrl(req){return BASE||`${req.protocol}://${req.get("host")}`}
+function sameMoney(a,b){return Math.abs(Number(a)-Number(b))<0.005}
+function paypalRequestId(prefix,value){
+  const hash=crypto.createHash("sha1").update(String(value||crypto.randomUUID())).digest("hex").slice(0,12);
+  return `${prefix}-${hash}`.slice(0,25);
+}
+async function paypalAccessToken(){
+  if(!paypalConfigured())throw new Error("PayPal is not configured.");
+  if(paypalTokenCache.token&&Date.now()<paypalTokenCache.expiresAt-60000)return paypalTokenCache.token;
+  const auth=Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString("base64");
+  const r=await fetch(`${PAYPAL_API_BASE}/v1/oauth2/token`,{
+    method:"POST",
+    headers:{Authorization:`Basic ${auth}`,"Content-Type":"application/x-www-form-urlencoded",Accept:"application/json"},
+    body:"grant_type=client_credentials"
+  });
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok||!d.access_token)throw new Error(d.error_description||d.error||`PayPal authentication failed (${r.status}).`);
+  paypalTokenCache={token:d.access_token,expiresAt:Date.now()+Math.max(60,Number(d.expires_in||300))*1000};
+  return paypalTokenCache.token;
+}
+async function paypalApi(method,endpoint,{body,requestId}={}){
+  const token=await paypalAccessToken();
+  const headers={Authorization:`Bearer ${token}`,Accept:"application/json","Content-Type":"application/json","Prefer":"return=representation"};
+  if(requestId)headers["PayPal-Request-Id"]=requestId;
+  const r=await fetch(`${PAYPAL_API_BASE}${endpoint}`,{method,headers,body:body===undefined?undefined:JSON.stringify(body)});
+  const d=await r.json().catch(()=>({}));
+  return {r,d};
+}
+function validateCheckoutContact(body){
+  const email=String(body?.email||"").trim().toLowerCase();
+  const phone=String(body?.phone||"").replace(/[\s()\-]/g,"");
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))throw new Error("Enter a valid email address.");
+  if(!/^\+[1-9]\d{6,14}$/.test(phone))throw new Error("Enter a valid international phone number.");
+  return {email,phone};
+}
+function findPayPalPending(orderID,discordId){
+  const rows=orders();
+  const i=rows.findIndex(x=>String(x.provider||"")==="paypal"&&String(x.paypalOrderId||"")===String(orderID||"")&&String(x?.discord?.id||"")===String(discordId||""));
+  return {rows,i,row:i>=0?rows[i]:null};
+}
+async function applyDeliveredBenefits(entry,logs,index){
+  if(!entry?.discord?.id)return entry;
+  const ps=products();
+  const containsPremium=(entry.items||[]).some(it=>{const p=ps.find(pp=>Number(pp.id)===Number(it.productId));return (p&&isPremiumSubscriptionProduct(p))||/premium/i.test(String(it?.name||""))});
+  if(containsPremium)setPremiumControl(entry.discord.id,true);
+  const roleResult=await assignDiscordCustomerRole(entry.discord.id);
+  entry.customerRoleAssigned=roleResult.ok===true;
+  entry.customerRoleUpdatedAt=new Date().toISOString();
+  if(!roleResult.ok)entry.customerRoleError=String(roleResult.reason||`HTTP ${roleResult.status||"error"}`).slice(0,300);else delete entry.customerRoleError;
+  if(Array.isArray(logs)&&Number.isInteger(index)&&index>=0){logs[index]=entry;write(RECEIPT_LOGS,logs)}
+  return entry;
+}
+
+app.get("/api/paypal/config",(_req,res)=>{
+  res.json({
+    enabled:paypalConfigured(),
+    clientId:paypalConfigured()?PAYPAL_CLIENT_ID:"",
+    mode:PAYPAL_MODE,
+    currency:PAYPAL_CURRENCY,
+    sarPerUnit:PAYPAL_SAR_PER_UNIT
+  });
+});
+
+app.post("/api/checkout/paypal/create-order",requireCustomerApi,async(req,res)=>{
+  try{
+    if(!paypalConfigured())return res.status(503).json({message:"PayPal is not configured yet."});
+    const {email,phone}=validateCheckoutContact(req.body);
+    const requestItems=Array.isArray(req.body?.items)?req.body.items:[];
+    if(!requestItems.length)return res.status(400).json({message:"Cart is empty."});
+    const normalizedResult=normalizeCartItems(req,requestItems);
+    const priced=applyCouponToCart(normalizedResult,req.body?.couponCode);
+    const totalSar=Number(priced.total||0);
+    if(totalSar<=0)return res.status(400).json({message:"This order is free. Use the free order checkout."});
+    const paypalAmount=paypalAmountFromSar(totalSar);
+    const ref=crypto.randomUUID();
+    const base=requestBaseUrl(req);
+    const description=(normalizedResult.items||[]).map(x=>x.name).join(", ").slice(0,120)||"Eleven Store order";
+    const body={
+      intent:"CAPTURE",
+      purchase_units:[{
+        reference_id:ref,
+        custom_id:ref,
+        description,
+        amount:{currency_code:PAYPAL_CURRENCY,value:paypalAmount}
+      }],
+      payment_source:{paypal:{experience_context:{
+        brand_name:"Eleven Store",
+        shipping_preference:"NO_SHIPPING",
+        user_action:"PAY_NOW",
+        return_url:`${base}/payment-success`,
+        cancel_url:`${base}/checkout`
+      }}}
+    };
+    const {r,d}=await paypalApi("POST","/v2/checkout/orders",{body,requestId:paypalRequestId("create",ref)});
+    if(!r.ok||!d.id)return res.status(502).json({message:d?.details?.[0]?.description||d?.message||`PayPal could not create the order (${r.status}).`});
+
+    const rows=orders();
+    const entry={
+      id:nextId(rows),reference:ref,provider:"paypal",paypalOrderId:String(d.id),status:"paypal_created",
+      amount:Number(totalSar.toFixed(2)),currency:"SAR",paypalAmount:Number(paypalAmount),paypalCurrency:PAYPAL_CURRENCY,
+      subtotal:priced.subtotal,discount:priced.discount,coupon:priced.coupon,items:normalizedResult.items,
+      email,phone,discord:req.session.discordUser,createdAt:new Date().toISOString()
+    };
+    rows.push(entry);saveOrders(rows);
+    console.log(`[PAYPAL CREATED] ${entry.paypalOrderId} | @${entry.discord.username} (${entry.discord.id}) | SAR ${entry.amount} => ${entry.paypalCurrency} ${paypalAmount}`);
+    return res.json({id:d.id,amount:paypalAmount,currency:PAYPAL_CURRENCY,sarAmount:entry.amount});
+  }catch(e){
+    console.error("[PAYPAL CREATE]",e&&e.stack?e.stack:e);
+    return res.status(400).json({message:e.message||"Unable to create PayPal order."});
+  }
+});
+
+app.post("/api/checkout/paypal/capture-order",requireCustomerApi,async(req,res)=>{
+  try{
+    if(!paypalConfigured())return res.status(503).json({message:"PayPal is not configured yet."});
+    const orderID=String(req.body?.orderID||"").trim();
+    if(!/^[A-Z0-9]+$/i.test(orderID))return res.status(400).json({message:"Invalid PayPal order ID."});
+    const found=findPayPalPending(orderID,req.session.discordUser.id);
+    if(!found.row)return res.status(404).json({message:"PayPal order was not found for this account."});
+
+    // Idempotent retry: if we already finalized this payment, return the saved store order.
+    if(found.row.status==="paypal_captured"){
+      const existing=read(RECEIPT_LOGS,[]).find(x=>String(x.paypalOrderId||"")===orderID&&String(x?.discord?.id||"")===String(req.session.discordUser.id));
+      if(existing)return res.json({ok:true,orderNumber:existing.orderNumber,status:existing.status,paypalOrderId:orderID,paypalCaptureId:existing.paypalCaptureId||""});
+    }
+
+    // Verify the approved PayPal order amount BEFORE capture.
+    const details=await paypalApi("GET",`/v2/checkout/orders/${encodeURIComponent(orderID)}`);
+    if(!details.r.ok)return res.status(502).json({message:details.d?.message||"Could not verify the PayPal order."});
+    const pu=details.d?.purchase_units?.[0]||{};
+    const remoteAmount=pu?.amount?.value,remoteCurrency=pu?.amount?.currency_code;
+    if(String(remoteCurrency||"")!==found.row.paypalCurrency||!sameMoney(remoteAmount,found.row.paypalAmount)||String(pu.custom_id||"")!==String(found.row.reference||"")){
+      console.error(`[PAYPAL VERIFY] amount/reference mismatch for ${orderID}`);
+      return res.status(409).json({message:"PayPal order verification failed. Payment was not captured."});
+    }
+
+    const capture=await paypalApi("POST",`/v2/checkout/orders/${encodeURIComponent(orderID)}/capture`,{requestId:paypalRequestId("capture",found.row.reference)});
+    if(!capture.r.ok||capture.d?.status!=="COMPLETED")return res.status(502).json({message:capture.d?.details?.[0]?.description||capture.d?.message||"PayPal payment could not be captured."});
+    const cap=capture.d?.purchase_units?.[0]?.payments?.captures?.[0]||{};
+    if(String(cap?.amount?.currency_code||"")!==found.row.paypalCurrency||!sameMoney(cap?.amount?.value,found.row.paypalAmount)){
+      console.error(`[PAYPAL CAPTURE] captured amount mismatch for ${orderID}`);
+      return res.status(409).json({message:"Payment was captured, but the amount did not match the store order. Contact support with your PayPal order ID."});
+    }
+
+    const logs=read(RECEIPT_LOGS,[]);
+    let logIndex=logs.findIndex(x=>String(x.paypalOrderId||"")===orderID);
+    let entry;
+    if(logIndex>=0){
+      entry=logs[logIndex];
+    }else{
+      const id=nextId(logs),orderNumber=`ES-${String(id).padStart(5,"0")}`;
+      entry={
+        id,orderNumber,email:found.row.email,phone:found.row.phone,discord:found.row.discord,
+        subtotal:found.row.subtotal,discount:found.row.discount,coupon:found.row.coupon,
+        amount:found.row.amount,currency:"SAR",items:found.row.items,
+        receiptUrl:"",receiptFilename:"",paymentMethod:"paypal",paymentProvider:"PayPal",
+        paypalOrderId:orderID,paypalCaptureId:String(cap.id||""),paypalAmount:Number(found.row.paypalAmount),paypalCurrency:found.row.paypalCurrency,
+        payerEmail:String(capture.d?.payer?.email_address||""),status:"delivered",createdAt:new Date().toISOString(),deliveredAt:new Date().toISOString()
+      };
+      logs.push(entry);logIndex=logs.length-1;write(RECEIPT_LOGS,logs);
+    }
+    entry=await applyDeliveredBenefits(entry,logs,logIndex);
+
+    found.rows[found.i]={...found.row,status:"paypal_captured",capturedAt:new Date().toISOString(),paypalCaptureId:String(cap.id||""),receiptLogId:entry.id};
+    saveOrders(found.rows);
+    console.log(`[PAYPAL CAPTURED] ${entry.orderNumber} | PayPal ${orderID} | ${entry.paypalCurrency} ${entry.paypalAmount} | SAR ${entry.amount}`);
+    return res.json({ok:true,orderNumber:entry.orderNumber,status:"delivered",paypalOrderId:orderID,paypalCaptureId:entry.paypalCaptureId});
+  }catch(e){
+    console.error("[PAYPAL CAPTURE]",e&&e.stack?e.stack:e);
+    return res.status(500).json({message:e.message||"Unable to capture PayPal payment."});
+  }
+});
 app.post("/api/checkout/bank-transfer",requireCustomerApi,receiptUpload.single("receipt"),async(req,res)=>{
   console.log(`[BANK TRANSFER] request received | file=${req.file?.originalname||"none"} | type=${req.file?.mimetype||"none"} | size=${req.file?.size||0}`);
   try{
@@ -1229,7 +1282,7 @@ app.post("/api/checkout/cart-session",requireCustomerApi,async(req,res)=>{
   }catch(e){console.error(e);res.status(500).json({message:"Unable to start checkout."})}
 });
 app.post("/api/payment/callback",(req,res)=>{console.log("Geidea callback",req.body);res.sendStatus(200)});
-app.get("/api/health",async(_req,res)=>{const discordRole=await checkDiscordCustomerRoleConfig();res.json({ok:true,paymentConfigured:Boolean(MPK&&APIP&&BASE),discordCustomerRoleConfigured:Boolean(DISCORD_BOT_TOKEN&&DISCORD_GUILD_ID&&DISCORD_CUSTOMER_ROLE_ID),discordRole});});
+app.get("/api/health",async(_req,res)=>{const discordRole=await checkDiscordCustomerRoleConfig();res.json({ok:true,paymentConfigured:Boolean(MPK&&APIP&&BASE)||paypalConfigured(),geideaConfigured:Boolean(MPK&&APIP&&BASE),paypalConfigured:paypalConfigured(),paypalMode:PAYPAL_MODE,paypalCurrency:PAYPAL_CURRENCY,discordCustomerRoleConfigured:Boolean(DISCORD_BOT_TOKEN&&DISCORD_GUILD_ID&&DISCORD_CUSTOMER_ROLE_ID),discordRole});});
 
 
 app.use((err,req,res,next)=>{
@@ -1252,9 +1305,10 @@ async function startServer(){
     process.exit(1);
   }
   app.listen(PORT,async()=>{
-    console.log(`Eleven Store v6.4.6 persistent running: http://localhost:${PORT}`);
+    console.log(`Eleven Store v6.6.0 PayPal + persistent running: http://localhost:${PORT}`);
     console.log(`Admin: http://localhost:${PORT}/admin`);
     console.log(`[PERSISTENCE] ${SUPABASE_ENABLED?"Supabase enabled":"LOCAL ONLY - NOT SAFE ON RENDER"}`);
+    console.log(`[PAYPAL] ${paypalConfigured()?`ready | mode=${PAYPAL_MODE} | currency=${PAYPAL_CURRENCY} | 1 ${PAYPAL_CURRENCY}=${PAYPAL_SAR_PER_UNIT} SAR`:"not configured"}`);
     const roleCheck=await checkDiscordCustomerRoleConfig();
     if(roleCheck.ok)console.log(`[DISCORD CUSTOMER ROLE] ready | bot=${roleCheck.botUsername} | role=${roleCheck.roleName}`);
     else console.warn(`[DISCORD CUSTOMER ROLE] not ready | ${roleCheck.reason||'Check Render Environment and Discord role hierarchy'}`);

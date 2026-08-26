@@ -11,6 +11,7 @@ const countries=[
 ];
 let discord=null,unlocked=false,pricing={items:[],subtotal:items.reduce((a,x)=>a+Number(x.price||0)*Number(x.qty||1),0),discount:0,total:0,coupon:null};
 pricing.total=pricing.subtotal;
+let paypalConfig=null,paypalRendered=false,paypalSdkPromise=null;
 function requestItems(){return items.map(x=>({productId:x.id,qty:x.qty,option:x.option||''}))}
 function setupCountries(){const select=$('#countryCode');select.innerHTML=countries.map(([iso,name,code])=>`<option value="${code}" data-iso="${iso}" ${iso==='SA'?'selected':''}>${name} ${code==='custom'?'':`(+${code})`}</option>`).join('');select.addEventListener('change',()=>{const custom=select.value==='custom';$('#customCodeWrap').classList.toggle('hidden',!custom);updatePhonePreview()});$('#customCode').addEventListener('input',updatePhonePreview);$('#phone').addEventListener('input',updatePhonePreview);updatePhonePreview()}
 function selectedCode(){const v=$('#countryCode').value;if(v!=='custom')return v;return $('#customCode').value.replace(/\D/g,'').slice(0,4)}
@@ -19,24 +20,97 @@ function fullPhone(){const code=selectedCode(),local=cleanLocalPhone();return co
 function validPhone(){return /^\+[1-9]\d{6,14}$/.test(fullPhone())}
 function updatePhonePreview(){const code=selectedCode(),local=cleanLocalPhone(),preview=$('#phonePreview');preview.textContent=code?`Saved as +${code}${local||'…'}`:'Enter your international calling code.';preview.style.color=local&&!validPhone()?'#ff8b9a':''}
 function validEmail(v){return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)}
+
+function paypalStatus(message,type='info'){
+  const el=$('#paypalStatus');if(!el)return;
+  if(!message){el.textContent='';el.className='paypal-status hidden';return}
+  el.textContent=message;el.className=`paypal-status ${type}`;
+}
+function paypalDisplayAmount(){
+  if(!paypalConfig?.enabled||!Number(paypalConfig.sarPerUnit))return null;
+  const decimals=paypalConfig.currency==='JPY'?0:2;
+  const value=Number(pricing.total||0)/Number(paypalConfig.sarPerUnit);
+  return {value:value.toFixed(decimals),currency:paypalConfig.currency};
+}
+function updatePayPalAmountNote(){
+  const el=$('#paypalAmountNote');if(!el)return;
+  if(Number(pricing.total||0)===0){el.textContent='No payment is required for this order.';return}
+  const converted=paypalDisplayAmount();
+  if(!paypalConfig){el.textContent='Loading PayPal...';return}
+  if(!paypalConfig.enabled){el.textContent='PayPal is not configured yet. Bank transfer is still available.';return}
+  el.textContent=`PayPal charge: ${converted.currency} ${converted.value} for ${money(pricing.total)} · conversion set to 1 ${converted.currency} = ${Number(paypalConfig.sarPerUnit)} SAR.`;
+}
+function validateCheckoutFields(){
+  const email=$('#email').value.trim();
+  if(!selectedCode())throw new Error('Choose your country code.');
+  if(!validPhone())throw new Error('Enter a valid phone number for the selected country.');
+  if(!validEmail(email))throw new Error('Enter a valid email address.');
+  if(!discord)throw new Error('Connect your Discord account first.');
+  return {email,phone:fullPhone()};
+}
+function loadPayPalSdk(clientId,currency){
+  if(window.paypal)return Promise.resolve(window.paypal);
+  if(paypalSdkPromise)return paypalSdkPromise;
+  paypalSdkPromise=new Promise((resolve,reject)=>{
+    const s=document.createElement('script');
+    s.src=`https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(clientId)}&currency=${encodeURIComponent(currency)}&intent=capture&components=buttons`;
+    s.async=true;s.onload=()=>window.paypal?resolve(window.paypal):reject(new Error('PayPal SDK did not initialize.'));s.onerror=()=>reject(new Error('Could not load PayPal.'));
+    document.head.appendChild(s);
+  });
+  return paypalSdkPromise;
+}
+async function initPayPal(){
+  try{
+    const r=await fetch('/api/paypal/config');const d=await r.json().catch(()=>({}));paypalConfig=d;updatePayPalAmountNote();
+    if(!r.ok||!d.enabled||!d.clientId){paypalStatus('PayPal is not configured yet. You can still use bank transfer.','info');return}
+    const pp=await loadPayPalSdk(d.clientId,d.currency);
+    if(paypalRendered)return;
+    paypalRendered=true;
+    await pp.Buttons({
+      style:{layout:'vertical',shape:'rect',label:'paypal',height:45},
+      createOrder:async()=>{
+        try{
+          const contact=validateCheckoutFields();
+          paypalStatus('Creating secure PayPal checkout...','info');
+          const r=await fetch('/api/checkout/paypal/create-order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:contact.email,phone:contact.phone,items:requestItems(),couponCode:localStorage.getItem('eleven_coupon')||''})});
+          const out=await r.json().catch(()=>({}));if(!r.ok)throw new Error(out.message||'Could not start PayPal checkout.');
+          paypalStatus('PayPal checkout ready. Complete the approval window.','info');
+          return out.id;
+        }catch(e){paypalStatus(e.message||'Could not start PayPal checkout.','error');throw e}
+      },
+      onApprove:async data=>{
+        try{
+          paypalStatus('PayPal approved. Confirming payment...','info');
+          const r=await fetch('/api/checkout/paypal/capture-order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({orderID:data.orderID})});
+          const out=await r.json().catch(()=>({}));if(!r.ok)throw new Error(out.message||'Could not confirm PayPal payment.');
+          localStorage.removeItem('eleven_cart');localStorage.removeItem('eleven_coupon');
+          paypalStatus(`Payment confirmed. Order ${out.orderNumber} is delivered.`,'');
+          setTimeout(()=>{location.href=`/payment-success?provider=paypal&order=${encodeURIComponent(out.orderNumber||'')}`},500);
+        }catch(e){paypalStatus(`${e.message||'PayPal payment confirmation failed.'} If PayPal shows a completed charge, contact support and include the PayPal order ID ${data.orderID}.`,'error')}
+      },
+      onCancel:()=>paypalStatus('PayPal checkout was cancelled. No order was delivered.','info'),
+      onError:err=>{console.error('PayPal button error',err);paypalStatus('PayPal could not complete the checkout. Try again or use bank transfer.','error')}
+    }).render('#paypal-button-container');
+  }catch(e){console.error('PayPal init',e);paypalConfig={enabled:false};updatePayPalAmountNote();paypalStatus(e.message||'PayPal is currently unavailable.','error')}
+}
 function renderSummary(){
   const rows=pricing.items.length?pricing.items:items.map(x=>({name:x.name,qty:x.qty,unitPrice:Number(x.price||0)}));
   $('#topTotal').textContent=money(pricing.total);
   $('#orderLines').innerHTML=rows.map(x=>`<div class="order-row"><span>${x.name} × ${x.qty}</span><strong>${money(Number(x.unitPrice||0)*Number(x.qty||1))}</strong></div>`).join('')+`${pricing.discount>0?`<div class="order-discount"><span>Coupon ${pricing.coupon?.code||''}</span><strong>- ${money(pricing.discount)}</strong></div>`:''}<div class="order-total"><span>Total</span><strong>${money(pricing.total)}</strong></div>`;
   const free=pricing.total===0;
-  $('#paymentHeading').textContent=free?'Free Order':'Bank transfer';
-  $('#paymentSub').textContent=free?'Your total is zero after Premium or coupon discount.':'Transfer the exact amount, then upload the receipt.';
-  $('#bankBox').classList.toggle('hidden',free);$('#receiptBox').classList.toggle('hidden',free);$('#submitReceipt').textContent=free?'Place Free Order →':'I Have Paid — Upload Receipt →';
+  $('#paymentHeading').textContent=free?'Free Order':'Secure payment';
+  $('#paymentSub').textContent=free?'Your total is zero after Premium or coupon discount.':'Pay instantly with PayPal or use bank transfer.';
+  $('#paypalBox').classList.toggle('hidden',free);$('#bankBox').classList.toggle('hidden',free);$('#receiptBox').classList.toggle('hidden',free);$('#submitReceipt').textContent=free?'Place Free Order →':'I Have Paid — Upload Receipt →';updatePayPalAmountNote();
 }
 async function refreshPricing(code=localStorage.getItem('eleven_coupon')||'',showMessage=false){
   const msg=$('#checkoutCouponMessage');if(showMessage){msg.textContent='Checking coupon...';msg.className=''}
   try{const r=await fetch('/api/coupons/validate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,items:requestItems()})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.message||'Coupon could not be applied.');pricing={items:d.items||[],subtotal:Number(d.subtotal||0),discount:Number(d.discount||0),total:Number(d.total||0),coupon:d.coupon||null};if(code){localStorage.setItem('eleven_coupon',String(d.coupon?.code||code).toUpperCase());$('#checkoutCoupon').value=String(d.coupon?.code||code).toUpperCase();if(showMessage){msg.textContent=`Coupon applied. You saved ${money(pricing.discount)}.`;msg.className='coupon-ok'}}else{localStorage.removeItem('eleven_coupon');if(showMessage){msg.textContent='';msg.className=''}}renderSummary();return true}catch(e){if(code){if(showMessage){msg.textContent=e.message;msg.className='coupon-error'}localStorage.removeItem('eleven_coupon')}pricing={items:[],subtotal:items.reduce((a,x)=>a+Number(x.price||0)*Number(x.qty||1),0),discount:0,total:items.reduce((a,x)=>a+Number(x.price||0)*Number(x.qty||1),0),coupon:null};renderSummary();return false}}
 async function loadDiscord(){try{const r=await fetch('/api/auth/discord');const d=await r.json();if(!d.connected){location.replace('/login?next=%2Fcheckout');return}discord=d.user;$('#connectDiscord').classList.add('hidden');$('#discordUser').classList.remove('hidden');$('#discordUser').textContent=`@${discord.username}${d.premiumActive?' · PREMIUM':''}`;const logout=$('#logoutCustomer');if(logout)logout.classList.remove('hidden');await refreshPricing(localStorage.getItem('eleven_coupon')||'',false)}catch{location.replace('/login?next=%2Fcheckout')}}
-setupCountries();renderSummary();$('#checkoutCoupon').value=localStorage.getItem('eleven_coupon')||'';loadDiscord();
+setupCountries();renderSummary();$('#checkoutCoupon').value=localStorage.getItem('eleven_coupon')||'';loadDiscord();initPayPal();
 $('#applyCheckoutCoupon').onclick=async()=>{const code=$('#checkoutCoupon').value.trim().toUpperCase();if(!code){localStorage.removeItem('eleven_coupon');await refreshPricing('',true);return}await refreshPricing(code,true)};
 $('#connectDiscord').onclick=()=>location.href='/auth/discord?next=%2Fcheckout';
 const logoutCustomer=$('#logoutCustomer');if(logoutCustomer)logoutCustomer.onclick=async()=>{try{await fetch('/api/auth/logout',{method:'POST'})}finally{location.href='/login?next=%2Fcheckout'}};
-$('#continue').onclick=()=>{const email=$('#email').value.trim();if(!selectedCode())return alert('Choose your country code.');if(!validPhone())return alert('Enter a valid phone number for the selected country.');if(!validEmail(email))return alert('Enter a valid email address.');if(!discord)return alert('Connect your Discord account first.');unlocked=true;$('#paymentArea').classList.remove('locked');document.querySelector('.payment-section').scrollIntoView({behavior:'smooth',block:'start'})};
+$('#continue').onclick=()=>{try{validateCheckoutFields();unlocked=true;$('#paymentArea').classList.remove('locked');document.querySelector('.payment-section').scrollIntoView({behavior:'smooth',block:'start'})}catch(e){alert(e.message)}};
 $('#receipt').addEventListener('change',()=>{const f=$('#receipt').files[0],name=$('#fileName');if(!f){name.classList.add('hidden');name.textContent='';return}name.textContent=f.name;name.classList.remove('hidden')});
 $('#submitReceipt').onclick=async()=>{
   if(!unlocked)return;const total=Number(pricing.total||0),message=$('#receiptMessage');message.classList.add('hidden');message.classList.remove('error','order-processing');const phone=fullPhone();const couponCode=localStorage.getItem('eleven_coupon')||'';const btn=$('#submitReceipt'),idleText=total===0?'Place Free Order →':'I Have Paid — Upload Receipt →';btn.disabled=true;btn.textContent=total===0?'Placing order...':'Uploading...';
