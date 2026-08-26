@@ -1,0 +1,11 @@
+Eleven Store v6.3.3
+
+- Checkout now requires customer login.
+- Added a dedicated login page using the existing Discord account connection.
+- Added customer logout on checkout.
+- Protected all checkout APIs from guest access.
+- Added Premium Members management in admin.
+- Admin can revoke or restore Premium without deleting orders.
+- Premium revocation state is stored in data/premium-access.json.
+- A newly delivered Premium purchase automatically restores Premium access.
+- Existing data/products.json was preserved unchanged.

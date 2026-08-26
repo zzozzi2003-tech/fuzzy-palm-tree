@@ -1,0 +1,26 @@
+DISCORD CUSTOMER ROLE SETUP - Eleven Store v6.4.6
+
+IMPORTANT: Set these in Render > Service > Environment. Do not rely on .env when deploying with Git/GitHub.
+
+Required variables:
+DISCORD_BOT_TOKEN=<new bot token>
+DISCORD_GUILD_ID=<server ID>
+DISCORD_CUSTOMER_ROLE_ID=<customer role ID>
+
+Discord requirements:
+1. Add the bot to the same server.
+2. Give the bot Manage Roles permission.
+3. In Server Settings > Roles, drag the BOT ROLE ABOVE the Customer role.
+4. The customer must already be a member of the Discord server.
+5. Restart/redeploy Render after changing Environment values.
+
+How to test:
+- Open https://YOUR-SITE/api/health
+- discordRole.ok should be true.
+- In Admin > Orders, delivered orders show Customer role added / Role failed.
+- If a delivered order failed, click Retry Customer Role.
+
+Common failures:
+401 = bot token invalid/reset.
+403 = bot lacks Manage Roles or its role is below Customer.
+404 = wrong Guild/Role ID or customer is not in the server.

@@ -1,0 +1,5 @@
+Eleven Store v6.5.5
+- Restored product images in product cards.
+- Kept the product card layout from v6.5.4.
+- Added Discord/Open Graph preview tags only in the page head.
+- Added public/assets/discord-preview.png.

@@ -1,0 +1,1 @@
+window.ELEVEN_STORE={discordUrl:"https://discord.gg/NzmA4xDnT",currency:"SAR"};

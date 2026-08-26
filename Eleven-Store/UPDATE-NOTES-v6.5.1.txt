@@ -1,0 +1,3 @@
+Eleven Store v6.5.1
+- Increased the product image square size in product cards.
+- Reduced image/text overlap by moving the content section lower.

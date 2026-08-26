@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#030712"><meta name="color-scheme" content="dark">
+<title>Product | Eleven Store</title>
+<link rel="stylesheet" href="/product.css"><link rel="stylesheet" href="/support-chat.css">
+</head>
+<body>
+<div class="page-glow" aria-hidden="true"></div>
+<header class="site-header"><div class="shell header-inner">
+  <a class="brand" href="/"><span class="brand-mark"><img src="/assets/eleven-logo.png" alt="Eleven Store"></span><span class="brand-copy"><b>ELEVEN</b><small>STORE</small></span></a>
+  <nav><a href="/">Home</a><a href="/#products">Products</a><a href="/orders">My Orders</a></nav>
+  <div class="header-actions"><a class="top-discord" href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener">DISCORD</a><div class="product-profile-wrap"><button class="header-btn product-profile-btn" id="accountBtn" type="button"><span id="productProfileAvatar" class="mini-profile-avatar">D</span><span id="productProfileName">ACCOUNT</span></button><div id="productProfileMenu" class="product-profile-menu hidden"><a href="/orders">My Orders</a><button id="productLogout" type="button">Logout</button></div></div><button class="cart-top" id="cartBtn" type="button" aria-label="Cart"><span>▱</span><b id="cartBadge">0</b></button></div>
+</div></header>
+
+<main class="shell product-page">
+  <div class="breadcrumbs"><a href="/">ELEVEN STORE</a><span>/</span><strong id="crumbName">PRODUCT</strong></div>
+  <section class="product-layout">
+    <section class="gallery-panel">
+      <div class="main-image-wrap"><button class="expand-btn" id="expandImage" type="button">EXPAND</button><button class="gallery-arrow left" id="prevImage" type="button">‹</button><img id="mainImage" src="/assets/eleven-logo.png" alt="Product image"><button class="gallery-arrow right" id="nextImage" type="button">›</button></div>
+      <div class="thumb-strip" id="thumbStrip"></div>
+    </section>
+
+    <article class="product-info-panel">
+      <div class="product-kickers"><span>ELEVEN PRODUCT</span><span id="specType">DIGITAL</span></div>
+      <h1 id="productName">Loading...</h1>
+      <div class="rating-inline"><span class="stars-display" id="headerStars"></span><b id="headerRating">New</b><span id="headerReviewCount">No ratings yet</span></div>
+      <p id="productDescription"></p>
+      <div class="price-row"><div><small>PRICE</small><strong id="productPrice">—</strong></div><span id="taxHint">SAR</span></div>
+      <div id="serviceOptions" class="service-options hidden"></div>
+      <div class="quantity-row"><span>Quantity</span><div class="qty"><button id="qtyMinus" type="button">−</button><b id="qtyValue">1</b><button id="qtyPlus" type="button">+</button></div></div>
+      <div class="buy-grid"><button class="buy-btn primary" id="addToCartBtn" type="button">ADD TO CART</button><button class="buy-btn secondary" id="buyNowBtn" type="button">BUY NOW</button></div>
+      <div class="product-specs"><div><span>TYPE</span><b id="specTypeBottom">Digital Product</b></div><div><span>VERSION</span><b id="specVersion">Latest</b></div><div><span>COMPATIBILITY</span><b>FiveM</b></div><div><span>DELIVERY</span><b>Digital</b></div></div>
+      <div class="product-actions"><button type="button" data-open-support>SUPPORT</button><a href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener">DISCORD</a><button id="copyLink" type="button">COPY LINK</button></div>
+    </article>
+  </section>
+
+  <section class="reviews-section">
+    <div class="reviews-title"><div><span class="eyebrow">DISCORD VERIFIED</span><h2>Customer Reviews</h2><p>Ratings are linked to signed-in Discord accounts.</p></div><div class="rating-score"><strong id="averageRating">0.0</strong><span class="stars-display large" id="averageStars"></span><small id="ratingCount">0 ratings</small></div></div>
+    <div class="reviews-layout">
+      <div class="reviews-list" id="commentsList"></div>
+      <aside class="review-compose">
+        <div id="reviewIdentity" class="review-identity"></div>
+        <div class="rating-picker-wrap"><span>Your rating</span><div class="rating-picker" id="ratingPicker" role="radiogroup" aria-label="Rating"><button type="button" data-rating="1">★</button><button type="button" data-rating="2">★</button><button type="button" data-rating="3">★</button><button type="button" data-rating="4">★</button><button type="button" data-rating="5">★</button></div><b id="ratingLabel">Choose 1–5 stars</b></div>
+        <form id="commentForm" class="comment-form"><label>Review <small>(optional)</small></label><textarea id="commentMessage" maxlength="1000" placeholder="Share your experience with this product..."></textarea><button id="reviewSubmit" type="submit">POST REVIEW</button></form>
+        <a id="reviewLogin" class="review-login hidden" href="/auth/discord">CONNECT DISCORD TO REVIEW</a>
+        <div id="reviewStatus" class="review-status"></div>
+      </aside>
+    </div>
+  </section>
+</main>
+
+<div id="cartModal" class="cart-modal hidden"><div class="cart-backdrop" data-close-cart></div><section class="cart-dialog"><header><button class="close-cart" data-close-cart>×</button><div><small>ELEVEN CART</small><h2>Shopping Cart</h2><span id="cartItemCount">0 items</span></div></header><div class="cart-content"><aside class="cart-summary"><label>Coupon code</label><div class="coupon-row"><input id="productCouponInput" maxlength="32" placeholder="Coupon code"><button id="productCouponApply" type="button">Apply</button></div><small id="productCouponMessage" class="product-coupon-message"></small><div class="summary-box"><div><span>Subtotal</span><b id="cartSubtotal">SAR 0</b></div><div id="productDiscountRow" class="hidden"><span>Discount</span><b id="productDiscount">SAR 0</b></div><div class="total"><span>Total</span><b id="cartTotal">SAR 0</b></div></div><button class="checkout-btn" id="modalCheckout">Continue to payment</button></aside><div class="cart-items" id="cartItems"></div></div></section></div>
+<div id="lightbox" class="lightbox hidden"><button id="closeLightbox">×</button><img id="lightboxImage"></div>
+<script src="/store-config.js"></script><script src="/product.js"></script><script src="/support-chat.js"></script>
+</body></html>

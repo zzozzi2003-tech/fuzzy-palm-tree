@@ -1,0 +1,4 @@
+Eleven Store v6.4.8
+- Lowered product text content so it no longer overlaps the product image/logo.
+- Slightly moved product image focus upward for cleaner separation.
+- Tightened card spacing while keeping the square layout.

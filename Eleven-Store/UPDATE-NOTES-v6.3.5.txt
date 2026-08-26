@@ -1,0 +1,15 @@
+Eleven Store v6.3.5 - Storefront UI / Motion / Cart refresh
+
+- Rebuilt the main storefront HTML/CSS with a cleaner blue/navy premium theme.
+- Header logo is locked in place (no transform/animation).
+- Added lightweight pointer-follow lighting and ambient parallax.
+- Added smooth product-card pointer tilt on desktop only.
+- CART label now sits above a real inline SVG cart icon.
+- Rebuilt the hero, header, search, product cards, filters and cart modal.
+- Restyled technical support chat to match the new storefront.
+- No product/order/coupon/admin/premium data structure changes.
+- No emoji-based storefront icons; cart/search use inline SVG.
+- Mobile/responsive layout updated.
+
+IMPORTANT FOR LIVE RENDER DATA:
+If your live Render deployment contains newer products/orders than this archive, keep your existing data/ folder. Use the UI PATCH archive or replace only public/index.html, public/store.css, public/shop.js and public/support-chat.css.

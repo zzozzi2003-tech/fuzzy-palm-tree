@@ -1,0 +1,5 @@
+Eleven Store v6.5.0
+- Product name moved fully below the image.
+- Product name now sits beside the price on the right side.
+- Prevents product titles from covering product images/logos.
+- Keeps rating, details, and add-to-cart layout clean.

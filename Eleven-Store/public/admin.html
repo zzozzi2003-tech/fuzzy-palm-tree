@@ -1,0 +1,199 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin | Eleven Store</title>
+<link rel="stylesheet" href="/admin.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="brand" href="/"><img src="/assets/eleven-logo.png"><span>Eleven Store</span></a>
+    <div class="header-actions">
+      <a class="ghost-btn discord-admin-top" href="https://discord.gg/NzmA4xDnT" target="_blank" rel="noopener">DISCORD</a>
+      <a class="ghost-btn" href="/" target="_blank">View Store</a>
+      <button id="logout" class="ghost-btn hidden">Logout</button>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+  <section id="loginView" class="login-card">
+    <span class="eyebrow">ADMIN DASHBOARD</span>
+    <h1>Eleven Store Admin</h1>
+    <p>Owner access or approved staff access.</p>
+    <form id="loginForm">
+      <input id="password" type="password" placeholder="Owner password" required>
+      <button class="primary-btn">Owner Login</button>
+    </form>
+    <div class="admin-login-divider"><span>OR</span></div>
+    <a class="discord-admin-login" href="/auth/admin-discord"><span class="discord-html-icon">D</span><span>Login with Discord as Staff</span></a>
+    <div id="staffAccessStatus" class="staff-access-status hidden"></div>
+    <small id="loginMessage"></small>
+  </section>
+
+  <section id="dashboard" class="hidden">
+    <div class="dash-head">
+      <div>
+        <span class="eyebrow">PRODUCTS</span>
+        <h1>Store Dashboard</h1>
+        <p>Manage products, orders, coupons, support and staff access.</p>
+        <div id="adminIdentity" class="admin-identity"></div>
+      </div>
+      <div class="dash-actions"><button id="showAdminAccess" class="ghost-btn hidden">Admin Access <b id="adminPendingBadge" class="support-unread hidden">0</b></button><button id="showHomepage" class="ghost-btn">Homepage</button><button id="showCoupons" class="ghost-btn">Coupons</button><button id="showPremium" class="ghost-btn">Premium Members</button><button id="showReviews" class="ghost-btn">Reviews</button><button id="showSupport" class="ghost-btn support-admin-btn">Support Chat <b id="supportUnreadBadge" class="support-unread hidden">0</b></button><button id="showNotifications" class="ghost-btn">Notify Members</button><button id="showOrders" class="ghost-btn">Orders</button><button id="showReceiptLogs" class="ghost-btn">Payment Logs</button><button id="newProduct" class="primary-btn">Add Product</button></div>
+    </div>
+
+    <div class="stats">
+      <article><span>Total products</span><strong id="totalProducts">0</strong></article>
+      <article><span>Active products</span><strong id="activeProducts">0</strong></article>
+      <article><span>Store currency</span><strong>SAR</strong></article>
+    </div>
+
+    <div id="productList" class="product-list"></div><section id="notificationsSection" class="notifications-section hidden">
+<div class="logs-head"><div><span class="eyebrow">MEMBERS</span><h2>Send Notification</h2></div><button id="closeNotifications" class="ghost-btn">Close</button></div>
+<form id="notificationForm" class="notification-form">
+<label>Message<textarea id="notificationMessage" rows="4" placeholder="Write the notification members will see..." required></textarea></label>
+<label>Target Discord ID <span>(optional)</span><input id="notificationTarget" placeholder="Leave empty to notify everyone"></label>
+<button class="primary-btn">Send Notification</button><small id="notificationResult"></small>
+</form><div id="notificationHistory" class="notification-history"></div></section>
+
+
+
+<section id="homepageSection" class="homepage-section hidden">
+  <div class="logs-head"><div><span class="eyebrow">HOMEPAGE</span><h2>Homepage Showcase</h2><p>Edit the three homepage cards and upload an optional image for each one.</p></div><button id="closeHomepage" class="ghost-btn">Close</button></div>
+  <form id="homepageForm" class="homepage-form" enctype="multipart/form-data">
+    <div id="homepageCardsEditor" class="homepage-cards-editor"></div>
+    <div class="coupon-form-actions"><button class="primary-btn" id="saveHomepage" type="submit">Save Homepage</button></div>
+    <small id="homepageMessage"></small>
+  </form>
+</section>
+
+<section id="reviewsAdminSection" class="reviews-admin-section hidden">
+  <div class="logs-head"><div><span class="eyebrow">REVIEWS</span><h2>Customer Reviews</h2><p>Discord-verified ratings and comments. Admins with edit access can remove reviews.</p></div><button id="closeReviewsAdmin" class="ghost-btn">Close</button></div>
+  <div id="reviewsAdminList" class="reviews-admin-list"></div>
+</section>
+
+<section id="supportSection" class="support-section hidden">
+  <div class="logs-head"><div><span class="eyebrow">LIVE SUPPORT</span><h2>Technical Support Chat</h2></div><button id="closeSupport" class="ghost-btn">Close</button></div>
+  <div class="support-admin-grid">
+    <aside id="supportThreadList" class="support-thread-list"></aside>
+    <section class="support-conversation">
+      <header id="supportConversationHead" class="support-conversation-head"><div><b>Select a conversation</b><small>Customer messages will appear here.</small></div></header>
+      <div id="supportMessages" class="support-messages"><div class="empty-admin">Select a support conversation.</div></div>
+      <form id="supportReplyForm" class="support-reply-form">
+        <textarea id="supportReply" maxlength="1200" placeholder="Write a reply..." disabled></textarea>
+        <button id="supportReplyButton" class="primary-btn" disabled>Send Reply</button>
+      </form>
+    </section>
+  </div>
+</section>
+
+<section id="couponsSection" class="coupons-section hidden">
+  <div class="logs-head"><div><span class="eyebrow">DISCOUNTS</span><h2>Coupon Management</h2><p>Create a coupon for all products or selected products only.</p></div><button id="closeCoupons" class="ghost-btn">Close</button></div>
+  <form id="couponForm" class="coupon-form">
+    <input id="couponId" type="hidden">
+    <label>Coupon code<input id="couponCode" maxlength="32" placeholder="ELEVEN20" required></label>
+    <div class="two">
+      <label>Discount type<select id="couponType"><option value="percent">Percentage</option><option value="fixed">Fixed amount (SAR)</option></select></label>
+      <label>Discount value<input id="couponValue" type="number" min="0.01" step="0.01" required></label>
+    </div>
+    <label class="toggle"><input id="couponActive" type="checkbox" checked> Coupon active</label>
+    <div class="coupon-products-block"><div><strong>Products</strong><small>Leave all unselected to apply the coupon to every product.</small></div><div id="couponProducts" class="coupon-product-options"></div></div>
+    <div class="coupon-form-actions"><button class="primary-btn" id="saveCoupon">Save Coupon</button><button class="ghost-btn hidden" type="button" id="cancelCouponEdit">Cancel Edit</button></div>
+    <small id="couponMessage"></small>
+  </form>
+  <div id="couponList" class="coupon-list"></div>
+</section>
+
+<section id="adminAccessSection" class="admin-access-section hidden">
+  <div class="logs-head"><div><span class="eyebrow">STAFF ACCESS</span><h2>Admin Login Requests</h2><p>Approve who can enter the dashboard and separately choose who can edit.</p></div><button id="closeAdminAccess" class="ghost-btn">Close</button></div>
+  <div id="adminAccessList" class="admin-access-list"></div>
+</section>
+
+<section id="premiumSection" class="premium-section hidden">
+  <div class="logs-head"><div><span class="eyebrow">PREMIUM ACCESS</span><h2>Premium Members</h2><p>Revoke or restore Premium without deleting the customer order.</p></div><button id="closePremium" class="ghost-btn">Close</button></div>
+  <div id="premiumMembers" class="premium-members"></div>
+</section>
+<section id="ordersSection" class="orders-section hidden">
+          <div class="logs-head"><div><span class="eyebrow">ORDERS</span><h2>Order Management</h2></div><button id="closeOrders" class="ghost-btn">Close</button></div>
+          <div class="order-tabs"><button class="active" data-order-filter="processing">Processing</button><button data-order-filter="delivered">Old Orders</button></div>
+          <div id="ordersList" class="receipt-logs"></div>
+        </section>
+        <section id="receiptLogsSection" class="receipt-logs-section hidden"><div class="logs-head"><div><span class="eyebrow">PAYMENTS</span><h2>Receipt Logs</h2></div><button id="closeReceiptLogs" class="ghost-btn">Close</button></div><div id="receiptLogs" class="receipt-logs"></div></section>
+  </section>
+</main>
+
+<div id="productModal" class="drawer-wrap hidden">
+  <div class="drawer-shade" data-close-product></div>
+  <aside class="drawer">
+    <button class="drawer-close" data-close-product>×</button>
+    <span class="eyebrow">PRODUCT EDITOR</span>
+    <h2 id="editorTitle">Add Product</h2>
+
+    <form id="productForm">
+      <input type="hidden" id="productId">
+      <label>Product name<input id="name" name="name" required></label>
+      <div class="two">
+        <label>Slug<input id="slug" name="slug"></label>
+        <label>Tag<input id="tag" name="tag"></label>
+      </div>
+      <label>Description<textarea id="description" name="description" rows="5"></textarea></label>
+      <div class="two">
+        <label>Price (SAR)<input id="price" name="price" type="number" step="0.01" min="0"></label>
+        <label>Sort order<input id="sortOrder" name="sortOrder" type="number"></label>
+      </div>
+      <label>Main product image
+        <input id="image" name="image" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
+      </label>
+      <label>Preview images
+        <input id="previewImages" name="previewImages" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple>
+        <small class="field-note">Upload multiple images. Customers can browse them in Preview.</small>
+      </label>
+      <div id="existingPreviews" class="existing-previews hidden"></div><label>Product type
+        <select id="productType">
+          <option value="standard">Standard Product</option>
+          <option value="programming_service">Programming Service</option>
+          <option value="premium_subscription">Premium Subscription</option>
+        </select>
+      </label>
+      <div id="servicePricingFields" class="service-pricing hidden">
+        <span class="service-section-title">Programming Service Prices</span>
+        <div class="two">
+          <label>Hourly rate (SAR)<input id="hourlyRate" type="number" min="0" step="0.01"></label>
+          <label>Weekly (SAR)<input id="weeklyPrice" type="number" min="0" step="0.01"></label>
+        </div>
+        <div class="two">
+          <label>Half monthly (SAR)<input id="halfMonthlyPrice" type="number" min="0" step="0.01"></label>
+          <label>Monthly (SAR)<input id="monthlyPrice" type="number" min="0" step="0.01"></label>
+        </div>
+        <label>Yearly (SAR)<input id="yearlyPrice" type="number" min="0" step="0.01"></label>
+      </div>
+      <label class="toggle"><input id="active" type="checkbox" checked> Show product in store</label>
+      <div id="previewWrap" class="preview hidden"><img id="preview"></div>
+      <button id="saveProduct" class="primary-btn full">Save Product</button>
+      <small id="editorMessage"></small>
+    </form>
+  </aside>
+</div>
+
+<script src="/admin.js"></script>
+
+<div id="siteConfirmModal" class="site-confirm-modal hidden" role="dialog" aria-modal="true" aria-labelledby="siteConfirmTitle">
+  <div class="site-confirm-backdrop" data-confirm-cancel></div>
+  <section class="site-confirm-card">
+    <div class="site-confirm-icon">!</div>
+    <div class="site-confirm-copy">
+      <span class="eyebrow">ELEVEN STORE</span>
+      <h2 id="siteConfirmTitle">Confirm action</h2>
+      <p id="siteConfirmText">Are you sure?</p>
+    </div>
+    <div class="site-confirm-actions">
+      <button id="siteConfirmCancel" class="ghost-btn" type="button">Cancel</button>
+      <button id="siteConfirmOk" class="primary-btn danger-confirm" type="button">Confirm</button>
+    </div>
+  </section>
+</div>
+
+</body>
+</html>

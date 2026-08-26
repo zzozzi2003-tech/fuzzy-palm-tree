@@ -1,0 +1,6 @@
+Eleven Store v6.4.9
+- Replaced robot support launcher with a chat bubble icon.
+- Talk to Support now opens the floating Technical Support chat directly.
+- Added Admin > Homepage editor for the three hero showcase cards.
+- Homepage cards can edit badge/title/description and upload/remove an image.
+- Added data/store-content.json for persistent homepage card content.

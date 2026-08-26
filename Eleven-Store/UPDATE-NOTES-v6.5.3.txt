@@ -1,0 +1,4 @@
+Eleven Store v6.5.3
+- Product cards now use a clean no-image layout.
+- Kept product name, rating, price, details, and add-to-cart button.
+- Compact card layout based on requested reference.
